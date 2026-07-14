@@ -29,6 +29,12 @@ a:hover{color:#163c7e}
 @keyframes pulseGlow{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
 .ekg path.linha{stroke-dasharray:1000;stroke-dashoffset:1000;transition:stroke-dashoffset 1.8s ease}
 [data-reveal].is-visible .ekg path.linha{stroke-dashoffset:0}
+.hero-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;filter:saturate(.88) brightness(.9)}
+.instagram-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;max-width:1040px;margin:0 auto;align-items:start}
+.instagram-card{min-width:0;width:100%}
+.instagram-grid .instagram-media{margin:0 auto!important;width:100%!important;min-width:0!important;max-width:540px!important;border-radius:16px!important}
+@media(max-width:1050px){.instagram-grid{grid-template-columns:1fr;max-width:540px}}
+@media(prefers-reduced-motion:reduce){.hero-video{display:none}}
 image-slot#hero-bg::part(empty){color:transparent}
 image-slot#before-photo::part(empty){justify-content:flex-start;padding-top:24px}
 image-slot#after-photo::part(empty){justify-content:flex-end;padding-bottom:24px}
@@ -56,7 +62,9 @@ image-slot#after-photo::part(empty){justify-content:flex-end;padding-bottom:24px
 <section id="topo" data-screen-label="Hero" style="position:relative;min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;padding:110px 20px 60px;text-align:center;background:#ffc61b">
   <div style="position:absolute;inset:0;overflow:hidden;z-index:0">
     <div style="position:absolute;inset:-5%;animation:kenburns 20s ease-in-out infinite alternate">
-      <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="hero-bg" shape="rect" placeholder="Foto do Hospital Samaritano fechado (ou vídeo institucional de Mineiros) — equipe fotografa no local" style="position:absolute;inset:0;width:100%;height:100%" hint-size="100%,100%"></x-import>
+      <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="uploads/hero-hospital-poster.jpg" aria-hidden="true" tabindex="-1">
+        <source src="uploads/hero-hospital.mp4" type="video/mp4">
+      </video>
     </div>
     <div style="position:absolute;inset:0;pointer-events:none;{{ heroOverlayStyle }}"></div>
   </div>
@@ -316,7 +324,7 @@ image-slot#after-photo::part(empty){justify-content:flex-end;padding-bottom:24px
 </section>
 
 <section id="movimento" data-screen-label="O Movimento" style="background:#f1592a;color:#f7f2dc;padding:88px 20px">
-  <div style="max-width:760px;margin:0 auto;text-align:center">
+  <div style="max-width:1080px;margin:0 auto;text-align:center">
     <h2 style="font-family:'Baloo 2',sans-serif;font-weight:800;font-style:italic;line-height:1.15;font-size:clamp(2.1rem,4vw + 1.2rem,3.75rem);margin:0">Essa luta começa em Mineiros.<br>E é <span style="color:#ffc61b">por Goiás inteiro.</span></h2>
     <p style="margin:22px auto 0;max-width:560px;font-weight:700;font-size:clamp(1.05rem,.6vw + 1rem,1.3rem);color:rgba(247,242,220,.95)">Não é sobre um candidato. É sobre o interior voltar a ter saúde de verdade. Se você acredita nisso, seu lugar é aqui dentro.</p>
 
@@ -332,10 +340,10 @@ image-slot#after-photo::part(empty){justify-content:flex-end;padding-bottom:24px
       <p style="text-align:center;font-family:'Baloo 2',sans-serif;font-weight:800;font-style:italic;font-size:clamp(1.3rem,1vw + 1.1rem,1.7rem);color:#f7f2dc;margin:0">Os últimos vídeos do Instagram</p>
       <p style="text-align:center;font-size:14px;font-weight:700;color:rgba(247,242,220,.85);margin:8px 0 28px">Acompanhe o Dr. de perto: <a href="https://www.instagram.com/drlourivallobo" target="_blank" rel="noopener noreferrer" style="color:#1d4b9b;font-weight:800;text-decoration:underline;text-underline-offset:2px">@drlourivallobo</a></p>
 
-      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:18px;max-width:620px;margin:0 auto">
-        <div style="width:150px">
+      <div class="instagram-grid">
+        <div class="instagram-card">
           <sc-if value="{{ hasReel1 }}" hint-placeholder-val="{{ false }}">
-            <blockquote class="instagram-media" data-instgrm-permalink="{{ reelUrl1 }}" data-instgrm-version="14" style="margin:0;width:150px;min-width:150px;background:#fff;border-radius:16px"></blockquote>
+            <blockquote class="instagram-media" data-instgrm-permalink="{{ reelUrl1 }}" data-instgrm-version="14" style="margin:0;width:100%;min-width:0;background:#fff;border-radius:16px"></blockquote>
           </sc-if>
           <sc-if value="{{ noReel1 }}" hint-placeholder-val="{{ true }}">
             <div style="border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 14px 30px rgba(0,0,0,.18)">
@@ -348,9 +356,9 @@ image-slot#after-photo::part(empty){justify-content:flex-end;padding-bottom:24px
             </div>
           </sc-if>
         </div>
-        <div style="width:150px">
+        <div class="instagram-card">
           <sc-if value="{{ hasReel2 }}" hint-placeholder-val="{{ false }}">
-            <blockquote class="instagram-media" data-instgrm-permalink="{{ reelUrl2 }}" data-instgrm-version="14" style="margin:0;width:150px;min-width:150px;background:#fff;border-radius:16px"></blockquote>
+            <blockquote class="instagram-media" data-instgrm-permalink="{{ reelUrl2 }}" data-instgrm-version="14" style="margin:0;width:100%;min-width:0;background:#fff;border-radius:16px"></blockquote>
           </sc-if>
           <sc-if value="{{ noReel2 }}" hint-placeholder-val="{{ true }}">
             <div style="border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 14px 30px rgba(0,0,0,.18)">
@@ -363,9 +371,9 @@ image-slot#after-photo::part(empty){justify-content:flex-end;padding-bottom:24px
             </div>
           </sc-if>
         </div>
-        <div style="width:150px">
+        <div class="instagram-card">
           <sc-if value="{{ hasReel3 }}" hint-placeholder-val="{{ false }}">
-            <blockquote class="instagram-media" data-instgrm-permalink="{{ reelUrl3 }}" data-instgrm-version="14" style="margin:0;width:150px;min-width:150px;background:#fff;border-radius:16px"></blockquote>
+            <blockquote class="instagram-media" data-instgrm-permalink="{{ reelUrl3 }}" data-instgrm-version="14" style="margin:0;width:100%;min-width:0;background:#fff;border-radius:16px"></blockquote>
           </sc-if>
           <sc-if value="{{ noReel3 }}" hint-placeholder-val="{{ true }}">
             <div style="border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 14px 30px rgba(0,0,0,.18)">
@@ -473,10 +481,6 @@ class Component extends DCLogic {
     tick();
   }
 
-  componentDidUpdate() {
-    this._processInstagramEmbeds();
-  }
-
   renderVals() {
     const overlay = this.props.heroOverlay ?? 0.65;
     const edgeOpacity = Math.max(overlay - 0.25, 0.15);
@@ -494,7 +498,7 @@ class Component extends DCLogic {
       headerStyle: this.state.scrolled
         ? 'background:rgba(247,242,220,.95);backdrop-filter:blur(10px);box-shadow:0 2px 16px rgba(29,75,155,.14)'
         : 'background:transparent',
-      heroOverlayStyle: `background:radial-gradient(ellipse 85% 68% at 50% 44%, rgba(247,242,220,.96) 0%, rgba(247,242,220,.9) 44%, rgba(255,198,27,${edgeOpacity}) 74%, rgba(255,198,27,${edgeOpacityOuter}) 100%)`,
+      heroOverlayStyle: `background:radial-gradient(ellipse 70% 68% at 50% 44%, rgba(247,242,220,.9) 0%, rgba(247,242,220,.76) 48%, rgba(255,198,27,${edgeOpacity}) 78%, rgba(255,198,27,${edgeOpacityOuter}) 100%)`,
       sliderPos: this.state.sliderPos,
       sliderWidthStyle: `width:${this.state.sliderPos}%`,
       sliderHandleStyle: `left:${this.state.sliderPos}%`,
