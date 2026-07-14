@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+/*
+  Identidade visual — extraída do adesivo oficial aprovado.
+  ------------------------------------------------------------------
+  amarelo  #FFC61B  fundo do adesivo — cor de energia, primeira tela
+  laranja  #F1592A  cor de ação: botões, placas, palavras-chave
+  azul     #1D4B9B  cor de estrutura: títulos, faixas, rodapé
+  creme    #F7F2DC  fundo padrão das seções e texto sobre laranja/azul
+  TEMA CLARO SEMPRE. Nenhuma seção escura.
+*/
+:root {
+  --amarelo: #ffc61b;
+  --amarelo-claro: #ffd75e;
+  --laranja: #f1592a;
+  --laranja-escuro: #d64a1f;
+  --azul: #1d4b9b;
+  --azul-escuro: #163c7e;
+  --creme: #f7f2dc;
+  --branco: #ffffff;
+  --tinta: #33405c; /* texto corrido sobre fundos claros */
+}
+
+@theme inline {
+  --color-amarelo: var(--amarelo);
+  --color-amarelo-claro: var(--amarelo-claro);
+  --color-laranja: var(--laranja);
+  --color-laranja-escuro: var(--laranja-escuro);
+  --color-azul: var(--azul);
+  --color-azul-escuro: var(--azul-escuro);
+  --color-creme: var(--creme);
+  --color-tinta: var(--tinta);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--creme);
+  color: var(--tinta);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+   Tipografia de impacto: gorda, arredondada e inclinada como o adesivo
+------------------------------------------------------------------- */
+.titulo-impacto {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.005em;
+  line-height: 1.04;
+}
+
+/* ------------------------------------------------------------------
+   A placa laranja do adesivo ("Dr. Lourival"): retângulo arredondado
+   laranja com texto creme, levemente girado. Elemento-assinatura.
+------------------------------------------------------------------- */
+.placa {
+  display: inline-block;
+  background: var(--laranja);
+  color: var(--creme);
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  border-radius: 0.55em;
+  padding: 0.08em 0.42em 0.14em;
+  transform: rotate(-2deg);
+}
+.placa-azul {
+  background: var(--azul);
+}
+
+/* ------------------------------------------------------------------
+   Animações de entrada na rolagem (componente <Reveal>)
+------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
+}
+.reveal.visivel {
+  opacity: 1;
+  transform: none;
+}
+
+/* Título da seção 1: cada palavra entra com fade, uma depois da outra */
+@keyframes palavra-fade {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.palavra {
+  display: inline-block;
+  opacity: 0;
+  animation: palavra-fade 0.55s ease forwards;
+}
+
+/* Seta discreta de rolagem na primeira tela */
+@keyframes flutuar {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+.seta-rolagem {
+  animation: flutuar 1.8s ease-in-out infinite;
+}
+
+/* Linha de batimento cardíaco que "se desenha" ao entrar na tela */
+.batimento-desenha {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  transition: stroke-dashoffset 2.2s ease;
+}
+.visivel .batimento-desenha,
+.batimento-desenha.visivel {
+  stroke-dashoffset: 0;
+}
+
+/* Carrossel horizontal sem barra de rolagem visível (cards no celular) */
+.sem-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sem-scrollbar::-webkit-scrollbar {
+  display: none;
+}
