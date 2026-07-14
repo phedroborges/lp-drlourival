@@ -31,10 +31,13 @@ a:hover{color:#163c7e}
 @keyframes pulseGlow{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
 .ekg path.linha{stroke-dasharray:1000;stroke-dashoffset:1000;transition:stroke-dashoffset 1.8s ease}
 [data-reveal].is-visible .ekg path.linha{stroke-dashoffset:0}
-.hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;filter:saturate(.88) brightness(.9)}
+.hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 32%;filter:saturate(.88) brightness(.9)}
 .instagram-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;max-width:1040px;margin:0 auto;align-items:start}
 .instagram-card{min-width:0;width:100%}
 .instagram-grid .instagram-media{margin:0 auto!important;width:100%!important;min-width:0!important;max-width:540px!important;border-radius:16px!important}
+.hospital-photo{position:relative;margin:48px auto 0;max-width:900px;aspect-ratio:16/9;border-radius:24px;overflow:hidden;background:#fff;box-shadow:0 20px 45px rgba(29,75,155,.12)}
+.hospital-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.hospital-photo figcaption{position:absolute;bottom:12px;left:12px;font-size:11px;font-weight:800;background:#f1592a;color:#f7f2dc;padding:4px 10px;border-radius:999px}
 .ally-layout{margin:52px auto 0;display:grid;grid-template-columns:minmax(260px,380px) minmax(0,1fr);gap:44px;align-items:center;max-width:900px}
 .ally-photo{margin:0;border-radius:24px;overflow:hidden;background:#163c7e;box-shadow:0 22px 46px rgba(0,0,0,.28);transform:rotate(-1deg)}
 .ally-photo img{display:block;width:100%;height:auto;aspect-ratio:3/4;object-fit:cover}
@@ -64,7 +67,7 @@ image-slot#hero-bg::part(empty){color:transparent}
 
 <section id="topo" data-screen-label="Hero" style="position:relative;min-height:100svh;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden;padding:110px 20px 60px;text-align:center;background:#ffc61b">
   <div style="position:absolute;inset:0;overflow:hidden;z-index:0">
-    <img class="hero-image" src="uploads/Imagem melhorada com IA (1).jpg" alt="Fachada histórica do Hospital Samaritano em Mineiros">
+    <img class="hero-image" src="uploads/dr-lourival-hero.webp" alt="Dr. Lourival durante encontro da pré-campanha">
     <div style="position:absolute;inset:0;pointer-events:none;{{ heroOverlayStyle }}"></div>
   </div>
 
@@ -110,7 +113,12 @@ image-slot#hero-bg::part(empty){color:transparent}
       Teve um tempo em que o interior vinha para cá <span style="display:inline-block;background:#f1592a;color:#f7f2dc;border-radius:.55em;padding:.08em .42em .14em;transform:rotate(-2deg);font-size:.9em">atrás de cura.</span>
     </h2>
 
-    <div style="margin-top:48px;max-width:680px;margin-left:auto;margin-right:auto;display:flex;flex-direction:column;gap:22px;font-size:clamp(1rem,.3vw + .95rem,1.125rem);line-height:1.7">
+    <figure class="hospital-photo">
+      <img src="uploads/Imagem melhorada com IA (1).jpg" alt="Fachada histórica do Hospital Samaritano em Mineiros" loading="lazy" width="1920" height="1080">
+      <figcaption>Mineiros, antes</figcaption>
+    </figure>
+
+    <div style="margin-top:56px;max-width:680px;margin-left:auto;margin-right:auto;display:flex;flex-direction:column;gap:22px;font-size:clamp(1rem,.3vw + .95rem,1.125rem);line-height:1.7">
       <p data-reveal="">De carro, de ônibus, de carona. Gente da região inteira estradava até Mineiros porque aqui tinha médico bom e hospital de confiança. A cidade carregava o nome com orgulho. <strong style="color:#1d4b9b">Cidade Saúde.</strong></p>
       <p data-reveal="" style="transition-delay:.1s">Aí aconteceu com a gente o que vem acontecendo com o interior inteiro de Goiás. Quem decide foi atrás do dinheiro e do crescimento a qualquer custo, e esqueceu do principal. O hospital que era a nossa referência ficou pelo caminho. Hoje, quem precisa de socorro de verdade pega estrada.</p>
       <p data-reveal="" style="transition-delay:.15s;font-weight:800;color:#1d4b9b;font-size:1.1em">Mineiros é o exemplo. Mas roda esse estado e você vai ver. É cidade atrás de cidade vivendo a mesma história.</p>
