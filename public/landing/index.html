@@ -432,6 +432,16 @@ class Component extends DCLogic {
   state = { scrolled: false, sliderPos: 50, counter: 0 };
 
   componentDidMount() {
+    this._heroVideo = document.querySelector('.hero-video');
+    if (this._heroVideo && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this._heroVideo.muted = true;
+      this._heroVideo.defaultMuted = true;
+      this._heroVideo.loop = true;
+      this._heroVideo.playsInline = true;
+      this._heroVideo.autoplay = true;
+      this._heroVideo.play().catch(() => {});
+    }
+
     this._onScroll = () => this.setState({ scrolled: window.scrollY > 40 });
     this._onScroll();
     window.addEventListener('scroll', this._onScroll, { passive: true });
@@ -468,6 +478,7 @@ class Component extends DCLogic {
 
   componentWillUnmount() {
     window.removeEventListener('scroll', this._onScroll);
+    if (this._heroVideo) this._heroVideo.pause();
     if (this._revealObserver) this._revealObserver.disconnect();
     if (this._counterObserver) this._counterObserver.disconnect();
   }
