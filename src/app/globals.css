@@ -30,8 +30,8 @@
   --color-azul-escuro: var(--azul-escuro);
   --color-creme: var(--creme);
   --color-tinta: var(--tinta);
-  --font-sans: var(--font-sans);
-  --font-display: var(--font-display);
+  --font-sans: var(--font-kanit);
+  --font-display: var(--font-kanit);
 }
 
 html {
@@ -41,14 +41,14 @@ html {
 body {
   background: var(--creme);
   color: var(--tinta);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-kanit), system-ui, sans-serif;
 }
 
 /* ------------------------------------------------------------------
    Tipografia de impacto: gorda, arredondada e inclinada como o adesivo
 ------------------------------------------------------------------- */
 .titulo-impacto {
-  font-family: var(--font-display), sans-serif;
+  font-family: var(--font-kanit), sans-serif;
   font-weight: 800;
   font-style: italic;
   letter-spacing: 0.005em;
@@ -63,7 +63,7 @@ body {
   display: inline-block;
   background: var(--laranja);
   color: var(--creme);
-  font-family: var(--font-display), sans-serif;
+  font-family: var(--font-kanit), sans-serif;
   font-weight: 800;
   font-style: italic;
   border-radius: 0.55em;
