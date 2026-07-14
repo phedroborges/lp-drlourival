@@ -1,6 +1,14 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Landing page do Dr. Lourival
 
-## Getting Started
+O projeto preserva a estrutura Next.js existente e publica, na rota principal,
+a versão mais recente exportada pela ferramenta de design. Os arquivos dessa
+exportação ficam em `public/landing`; `next.config.ts` mantém a URL principal
+em `/` por meio de uma reescrita interna.
+
+As rotas auxiliares do projeto, como `/privacidade`, continuam sendo atendidas
+pelo App Router do Next.js.
+
+## Desenvolvimento
 
 First, run the development server:
 
