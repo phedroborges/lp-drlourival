@@ -12,7 +12,7 @@ const TABS = [
   { id: "visao", label: "Visão geral" },
   { id: "pessoas", label: "Pessoas" },
   { id: "territorios", label: "Territórios" },
-  { id: "rotas", label: "Rotas de rua" },
+  { id: "rotas", label: "Rotas no mapa" },
 ];
 
 async function request(url, method, body) {
