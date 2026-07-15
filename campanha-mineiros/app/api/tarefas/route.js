@@ -22,8 +22,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    if (!body.rota_id || !body.data || !Array.isArray(body.cabo_ids) || !body.cabo_ids.length) {
-      return Response.json({ error: "Rota, data e pelo menos um cabo são obrigatórios" }, { status: 400 });
+    if (!body.rota_id || !body.lider_id || !body.data || !Array.isArray(body.cabo_ids) || !body.cabo_ids.length) {
+      return Response.json({ error: "Rota, liderança, data e pelo menos um cabo são obrigatórios" }, { status: 400 });
     }
     return Response.json(createTarefa(body), { status: 201 });
   } catch (error) {
@@ -34,7 +34,7 @@ export async function POST(request) {
 export async function PATCH(request) {
   try {
     const body = await request.json();
-    if (!body.token || !body.cabo_id || !body.status) {
+    if (!body.tarefa_id || !body.cabo_id || !body.status) {
       return Response.json({ error: "Plano, cabo e status são obrigatórios" }, { status: 400 });
     }
     return Response.json(updateTarefaCabo(body));
