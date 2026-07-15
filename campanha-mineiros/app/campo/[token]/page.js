@@ -1,6 +1,7 @@
 "use client";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
-import { googleMapsSegments } from "@/lib/googleMapsRoute.mjs";
+import { googleMapsMobileUrl } from "@/lib/googleMapsRoute.mjs";
+import FieldRouteMap from "./FieldRouteMap";
 
 function formatDate(value) {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date(`${value}T12:00:00`));
@@ -18,7 +19,7 @@ export default function FieldPlanPage({ params }) {
     setTask(result);
   }, [token]);
   useEffect(() => { load().catch((reason) => setError(reason.message)); }, [load]);
-  const mapsLinks = useMemo(() => googleMapsSegments(task?.pontos || []), [task]);
+  const mapsLink = useMemo(() => googleMapsMobileUrl(task?.pontos || []), [task]);
 
   async function updateCabo(cabo, status) {
     if (status === "concluida" && !confirm(`Confirmar que ${cabo.nome} concluiu esta rota?`)) return;
@@ -48,7 +49,13 @@ export default function FieldPlanPage({ params }) {
       <div className="field-wrap">
         <section className="field-hero"><div className="field-kicker"><span>Rota programada</span><i className={`field-plan-status ${task.status_calculado}`}>{task.status_calculado === "concluida" ? "Concluída" : task.status_calculado === "andamento" ? "Em andamento" : task.status_calculado === "atrasada" ? "Atrasada" : "Planejada"}</i></div><h1>{task.rota_nome}</h1><p className="field-area">⌖ {task.bairro_nome || task.municipio_nome}, {task.municipio_nome}</p><div className="field-schedule"><div><span>Data</span><strong>{formatDate(task.data)}</strong></div><div><span>Turno</span><strong>{task.turno}</strong></div></div>{task.observacao ? <div className="field-brief"><span>Orientação da coordenação</span><p>{task.observacao}</p></div> : null}</section>
 
-        <section className="field-route-card"><div className="field-section-head"><div><span>01 · PERCURSO</span><h2>Rota no mapa</h2></div><small>{task.pontos.length} pontos</small></div><div className="field-timeline">{task.pontos.map((point, index) => { const start = index === 0; const end = index === task.pontos.length - 1; return <div key={point.id} className={start ? "start" : end ? "end" : ""}><span>{start ? "A" : end ? "B" : index}</span><p><strong>{start ? "Ponto de partida" : end ? "Ponto de chegada" : `Parada ${index}`}</strong><small>{Number(point.lat).toFixed(5)}, {Number(point.lng).toFixed(5)}</small></p></div>; })}</div><div className="field-maps-actions">{mapsLinks.map((link, index) => <a key={link} href={link} target="_blank" rel="noreferrer"><span className="field-google">G</span><p><strong>{mapsLinks.length > 1 ? `Abrir trecho ${index + 1}` : "Abrir rota no Google Maps"}</strong><small>Navegação pelas ruas</small></p><i>→</i></a>)}</div></section>
+        <section className="field-route-card">
+          <div className="field-section-head"><div><span>01 · PERCURSO</span><h2>Veja o caminho da equipe</h2><p>Siga a linha azul da partida até a chegada.</p></div><small>Rota completa</small></div>
+          <FieldRouteMap points={task.pontos} routeName={task.rota_nome} />
+          <div className="field-route-legend"><span><i className="start" /> Partida</span><span><i className="path" /> Caminho planejado</span><span><i className="end" /> Chegada</span></div>
+          {mapsLink ? <a className="field-maps-primary" href={mapsLink} target="_blank" rel="noreferrer"><span className="field-google">G</span><p><strong>Abrir rota no Google Maps</strong><small>Iniciar navegação pelas ruas</small></p><i>→</i></a> : null}
+          <p className="field-route-note">O mapa acima é o plano oficial da equipe. O Google Maps usa os principais pontos do percurso para abrir a navegação em um único botão.</p>
+        </section>
 
         <section className="field-team-card"><div className="field-section-head"><div><span>02 · EQUIPE</span><h2>Confirmação dos cabos</h2></div><small>{task.concluidos}/{task.cabos.length}</small></div><div className="field-progress"><div><span style={{ width: `${progress}%` }} /></div><p><strong>{progress}%</strong> da equipe concluiu</p></div><div className="field-team-list">{task.cabos.map((cabo) => <article key={cabo.cabo_id} className={cabo.status}><span className="field-person-avatar">{cabo.nome.slice(0, 2).toUpperCase()}</span><div><strong>{cabo.nome}</strong><small>{cabo.status === "concluida" ? "Rota concluída" : cabo.status === "andamento" ? "Está realizando a rota" : "Ainda não iniciou"}</small></div>{cabo.status === "concluida" ? <span className="field-check">✓</span> : <button disabled={busy === cabo.cabo_id} onClick={() => updateCabo(cabo, cabo.status === "andamento" ? "concluida" : "andamento")}>{busy === cabo.cabo_id ? "…" : cabo.status === "andamento" ? "Concluir" : "Iniciar"}</button>}</article>)}</div></section>
         <footer className="field-footer"><strong>Coordenação municipal · {task.municipio_nome}</strong><p>Em caso de dúvida, fale com o responsável pela sua equipe.</p></footer>
