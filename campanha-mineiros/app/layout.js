@@ -21,7 +21,13 @@ export default function RootLayout({ children }) {
       <body>
         <div className="app">
           <Nav />
-          <div className="main">{children}</div>
+          <div className="workspace-shell">
+            <header className="app-topbar">
+              <div><span className="topbar-dot" /><strong>Central de dados</strong></div>
+              <div className="topbar-actions"><span>Atualização em tempo real</span><span className="topbar-avatar">DL</span></div>
+            </header>
+            <div className="main">{children}</div>
+          </div>
         </div>
       </body>
     </html>

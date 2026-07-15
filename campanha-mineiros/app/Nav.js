@@ -3,8 +3,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Visão estadual", icon: "GO" },
-  { href: "/equipe", label: "Equipe completa", icon: "EQ" },
+  { href: "/", label: "Dashboard", icon: "▦" },
+  { href: "/equipe", label: "Pessoas", icon: "◉" },
 ];
 
 export default function Nav() {
@@ -12,32 +12,25 @@ export default function Nav() {
   return (
     <aside className="sidebar" aria-label="Navegação principal">
       <Link href="/" className="side-brand" aria-label="Dados da campanha — início">
-        <span className="brand-kicker">Dados da campanha</span>
-        <span className="brand-placa">Dr. Lourival</span>
-        <span className="brand-sub">Organização territorial de Goiás</span>
+        <span className="brand-symbol">L</span>
+        <span className="brand-copy"><strong>Dr. Lourival</strong><small>Dados da campanha</small></span>
       </Link>
 
-      <div className="side-sec">Operação</div>
-      {LINKS.map((l) => {
-        const active = l.href === "/" ? path === "/" || path.startsWith("/cidade/") : path.startsWith(l.href);
-        return (
-          <Link key={l.href} href={l.href} className={`side-link${active ? " active" : ""}`}>
-            <span className="side-ico" aria-hidden="true">{l.icon}</span>
-            <span>{l.label}</span>
-          </Link>
-        );
+      <div className="side-sec">Geral</div>
+      {LINKS.map((item) => {
+        const active = item.href === "/" ? path === "/" || path.startsWith("/cidade/") : path.startsWith(item.href);
+        return <Link key={item.href} href={item.href} className={`side-link${active ? " active" : ""}`}><span className="side-ico" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
       })}
 
-      <div className="side-sec">Dados</div>
-      <a className="side-link" href="/api/export" title="Baixar backup completo em JSON">
-        <span className="side-ico" aria-hidden="true">BK</span>
-        <span>Exportar backup</span>
-      </a>
+      <div className="side-sec">Ferramentas</div>
+      <a className="side-link" href="/api/export" title="Baixar backup completo em JSON"><span className="side-ico" aria-hidden="true">↓</span><span>Exportar dados</span></a>
+      <a className="side-link" href="https://tocomdrlourival.com" target="_blank" rel="noreferrer"><span className="side-ico" aria-hidden="true">↗</span><span>Site público</span></a>
 
       <div className="side-spacer" />
-      <div className="side-foot">
-        <a href="https://tocomdrlourival.com" target="_blank" rel="noreferrer">Abrir site público ↗</a>
-        <p>Acesso direto, sem login</p>
+      <div className="side-profile">
+        <span className="profile-avatar">DL</span>
+        <span><strong>Campanha ativa</strong><small>Goiás · 2026</small></span>
+        <i />
       </div>
     </aside>
   );
