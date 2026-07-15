@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { googleMapsSegments } from "@/lib/googleMapsRoute.mjs";
 
 const MINEIROS_CENTER = [-17.5653879, -52.5536721];
 
@@ -43,6 +44,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
   const [name, setName] = useState("");
   const [notice, setNotice] = useState("");
   const [drawMode, setDrawMode] = useState("idle");
+  const [shareNotice, setShareNotice] = useState("");
   const active = cidade.rotas.find((route) => route.id === activeId) || null;
   const finalized = active?.status === "finalizada";
 
@@ -197,7 +199,25 @@ export default function RoutePlanner({ cidade, onChanged }) {
     lastFittedRoute.current = null;
   }
 
+  async function shareMapsLinks() {
+    if (!active || active.pontos.length < 2) return;
+    const links = googleMapsSegments(active.pontos);
+    const text = links.length === 1 ? `Rota ${active.nome}` : `Rota ${active.nome} dividida em ${links.length} trechos:\n${links.map((link, index) => `Trecho ${index + 1}: ${link}`).join("\n")}`;
+    try {
+      if (navigator.share) {
+        await navigator.share(links.length === 1 ? { title: active.nome, text, url: links[0] } : { title: active.nome, text });
+        setShareNotice("Rota compartilhada.");
+      } else {
+        await navigator.clipboard.writeText(links.length === 1 ? links[0] : text);
+        setShareNotice(links.length === 1 ? "Link copiado." : "Links dos trechos copiados.");
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") setShareNotice("Não foi possível compartilhar. Use o botão para abrir no Maps.");
+    }
+  }
+
   const distance = active?.pontos.length > 1 ? `${totalDistance(active.pontos).toFixed(2)} km` : "—";
+  const googleMapsLinks = finalized && active?.pontos.length > 1 ? googleMapsSegments(active.pontos) : [];
 
   return (
     <div className="route-planner">
@@ -219,6 +239,8 @@ export default function RoutePlanner({ cidade, onChanged }) {
             <div className={`map-instruction ${drawMode !== "idle" ? "active" : ""}`}><span>{drawMode === "start" ? "1" : drawMode === "finish" ? "3" : drawMode === "waypoint" ? "2" : "⌖"}</span><p>{drawMode === "start" ? "Clique no mapa para definir a partida" : drawMode === "finish" ? "Clique no mapa para finalizar a rota" : drawMode === "waypoint" ? "Clique no mapa para desenhar o percurso" : finalized ? "Rota concluída" : "Escolha uma ação acima"}</p></div>
 
             <div className="stops-list"><div className="mini-heading"><span>Pontos do desenho</span><small>Ordem do percurso</small></div>{active.pontos.map((point, index) => { const isStart = index === 0; const isEnd = finalized && index === active.pontos.length - 1; return <div key={point.id} className={isStart ? "start" : isEnd ? "end" : ""}><span>{isStart ? "A" : isEnd ? "B" : index}</span><p><strong>{isStart ? "Ponto de partida" : isEnd ? "Ponto de chegada" : `Ponto intermediário ${index}`}</strong><small>{Number(point.lat).toFixed(5)}, {Number(point.lng).toFixed(5)}</small></p><button className="icon-button small" onClick={() => removePoint(point.id)} aria-label={`Remover ${isStart ? "partida" : isEnd ? "chegada" : `ponto ${index}`}`}>×</button></div>; })}{!active.pontos.length ? <p className="quiet-empty">O desenho ainda está vazio.</p> : null}</div>
+
+            {googleMapsLinks.length ? <div className="maps-share-card"><div className="maps-share-heading"><span className="maps-mark">G</span><p><strong>Compartilhar no Google Maps</strong><small>O Maps seguirá os pontos pela malha de ruas.</small></p></div><div className="maps-links">{googleMapsLinks.map((link, index) => <a key={`${index}-${link}`} href={link} target="_blank" rel="noreferrer">{googleMapsLinks.length === 1 ? "Abrir rota no Google Maps" : `Abrir trecho ${index + 1}`} <span>↗</span></a>)}</div><button className="share-route-button" onClick={shareMapsLinks}><span>↗</span> Compartilhar {googleMapsLinks.length === 1 ? "link" : `${googleMapsLinks.length} links`}</button>{googleMapsLinks.length > 1 ? <p className="maps-limit-note">A rota foi dividida para funcionar também no celular.</p> : null}{shareNotice ? <p className="share-feedback">{shareNotice}</p> : null}</div> : finalized ? null : active.pontos.length > 1 ? <p className="maps-draft-note">Finalize a rota para gerar o link do Google Maps.</p> : null}
 
             {active.pontos.length ? <div className="route-secondary-actions"><button className="secondary-button" onClick={undoLastPoint}>Desfazer último ponto</button><button className="danger-link" onClick={clearDrawing}>Limpar desenho</button></div> : null}
             <button className="danger-link full" onClick={removeRoute}>Excluir esta rota</button>
