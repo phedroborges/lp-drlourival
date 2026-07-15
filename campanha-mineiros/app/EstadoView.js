@@ -3,73 +3,115 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import EstadoMap from "./EstadoMap";
 
-function CityRow({ m }) {
+function CityRow({ city, onPreview }) {
   return (
-    <Link className="cityrow" href={`/cidade/${m.codigo}`}>
-      <span className="mdot" style={{
-        background: m.total ? "var(--green)" : "var(--danger-soft)",
-        border: `1.5px solid ${m.total ? "var(--ink)" : "var(--danger)"}`,
-      }} />
-      <span className="nm">{m.nome}</span>
-      {m.sudoeste ? <span className="sud">SO</span> : null}
-      <span className="count">{m.total ? `${m.nLideres} líd · ${m.nCabos} cabo` : "—"}</span>
+    <Link
+      className="cityrow"
+      href={`/cidade/${city.codigo}`}
+      onMouseEnter={() => onPreview(city)}
+      onFocus={() => onPreview(city)}
+    >
+      <span className={`city-status tier-${city.tier}`} />
+      <span className="nm">{city.nome}</span>
+      {city.sudoeste ? <span className="sud">SO</span> : null}
+      <span className="count">{city.total ? `${city.nLideres} líderes · ${city.nCabos} cabos` : "Estruturar"}</span>
+      <span aria-hidden="true">→</span>
     </Link>
   );
 }
 
+function Preview({ city }) {
+  if (!city) return (
+    <div className="city-preview empty-preview">
+      <span className="preview-icon">↗</span>
+      <strong>Passe sobre uma cidade</strong>
+      <p>Veja a estrutura sem sair do mapa. Clique apenas quando quiser abrir a operação completa.</p>
+    </div>
+  );
+  return (
+    <div className="city-preview">
+      <div className="preview-top">
+        <div><span className="micro-label">Prévia territorial</span><h2>{city.nome}</h2></div>
+        {city.sudoeste ? <span className="focus-tag">Foco Sudoeste</span> : null}
+      </div>
+      <div className="preview-metrics">
+        <div><strong>{city.nCoordenadores}</strong><span>coordenação</span></div>
+        <div><strong>{city.nLideres}</strong><span>lideranças</span></div>
+        <div><strong>{city.nCabos}</strong><span>cabos</span></div>
+        <div><strong>{city.nBairrosAtivos}/{city.nBairros}</strong><span>territórios ativos</span></div>
+      </div>
+      <div className="temperature-line">
+        <span className="temp green">{city.nVerde} apoio</span>
+        <span className="temp yellow">{city.nAmarelo} aproximação</span>
+        <span className="temp red">{city.nVermelho} resistência</span>
+        <span className="temp neutral">{city.nSem} sem leitura</span>
+      </div>
+      <Link className="primary-link" href={`/cidade/${city.codigo}`}>Abrir central de {city.nome} →</Link>
+    </div>
+  );
+}
+
 export default function EstadoView({ municipios }) {
-  const [q, setQ] = useState("");
-  const query = q.trim().toLowerCase();
+  const [query, setQuery] = useState("");
+  const mineiros = municipios.find((city) => city.nome === "Mineiros");
+  const [preview, setPreview] = useState(mineiros || null);
+  const normalized = query.trim().toLocaleLowerCase("pt-BR");
+  const totals = municipios.reduce((acc, city) => ({
+    lideres: acc.lideres + city.nLideres,
+    cabos: acc.cabos + city.nCabos,
+    cidades: acc.cidades + (city.total > 0 ? 1 : 0),
+  }), { lideres: 0, cabos: 0, cidades: 0 });
 
-  const totLid = municipios.reduce((a, m) => a + m.nLideres, 0);
-  const totCab = municipios.reduce((a, m) => a + m.nCabos, 0);
-  const comEquipe = municipios.filter((m) => m.total > 0).length;
-
-  const { sudoeste, outros, filtrados } = useMemo(() => {
-    const f = municipios.filter((m) => !query || m.nome.toLowerCase().includes(query));
-    return {
-      filtrados: f,
-      sudoeste: f.filter((m) => m.sudoeste),
-      outros: f.filter((m) => !m.sudoeste),
-    };
-  }, [municipios, query]);
+  const filtered = useMemo(() => municipios.filter((city) =>
+    !normalized || city.nome.toLocaleLowerCase("pt-BR").includes(normalized)
+  ), [municipios, normalized]);
+  const southwest = filtered.filter((city) => city.sudoeste);
+  const others = filtered.filter((city) => !city.sudoeste);
 
   return (
-    <main className="wrap">
-      <div className="eyebrow">Goiás · Sistema político da campanha</div>
-      <h1>Estado de Goiás</h1>
-      <p className="subtitle">
-        Clique num município no mapa ou na lista para entrar. Dentro da cidade você cadastra as <strong>lideranças</strong> e,
-        nos bairros, os <strong>cabos eleitorais</strong>. O Sudoeste Goiano (foco da campanha) está destacado.
-      </p>
-
-      <div className="stats">
-        <div className="stat"><div className="num">{totLid}</div><div className="lbl">Lideranças</div></div>
-        <div className="stat"><div className="num">{totCab}</div><div className="lbl">Cabos eleitorais</div></div>
-        <div className="stat"><div className="num">{comEquipe}<span style={{ fontSize: "1rem", color: "var(--muted)" }}> / 246</span></div><div className="lbl">Municípios com equipe</div></div>
-      </div>
-
-      <div className="estado-layout">
-        <EstadoMap municipios={municipios} />
-
+    <main className="command-page">
+      <header className="command-hero">
         <div>
-          <div className="toolbar" style={{ marginBottom: "0.6rem" }}>
-            <input type="text" placeholder="Buscar município…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <div className="citylist">
-            {query ? (
-              filtrados.length ? filtrados.map((m) => <CityRow key={m.codigo} m={m} />) : <div className="empty">Nada encontrado.</div>
-            ) : (
-              <>
-                <div className="subhead">Sudoeste Goiano ({sudoeste.length})</div>
-                {sudoeste.map((m) => <CityRow key={m.codigo} m={m} />)}
-                <div className="subhead">Demais municípios ({outros.length})</div>
-                {outros.map((m) => <CityRow key={m.codigo} m={m} />)}
-              </>
-            )}
-          </div>
+          <span className="eyebrow">Central territorial · Goiás</span>
+          <h1>Enxergue a campanha antes de decidir o próximo passo.</h1>
+          <p>Comece pelo mapa, confira a estrutura de cada cidade sem sair da tela e entre apenas onde houver trabalho a fazer.</p>
         </div>
-      </div>
+        {mineiros ? <Link className="hero-action" href={`/cidade/${mineiros.codigo}`}><span>Prioridade atual</span><strong>Abrir Mineiros</strong> →</Link> : null}
+      </header>
+
+      <section className="onboarding-strip" aria-label="Como usar o sistema">
+        <div><span>1</span><p><strong>Leia o mapa</strong> Passe sobre uma cidade para conferir a estrutura.</p></div>
+        <div><span>2</span><p><strong>Organize a equipe</strong> Coordenação, líderes e cabos em uma única visão.</p></div>
+        <div><span>3</span><p><strong>Planeje as ruas</strong> Monte as rotas operacionais no mapa da cidade.</p></div>
+      </section>
+
+      <section className="kpi-grid">
+        <article><span>Presença estadual</span><strong>{totals.cidades}<small>/246 cidades</small></strong></article>
+        <article><span>Lideranças</span><strong>{totals.lideres}</strong></article>
+        <article><span>Cabos eleitorais</span><strong>{totals.cabos}</strong></article>
+        <article><span>Próxima ação</span><strong className="action-copy">Estruturar territórios</strong></article>
+      </section>
+
+      <section className="state-workspace">
+        <div className="mapcard"><EstadoMap municipios={municipios} onPreview={(city) => city && setPreview(city)} /></div>
+        <Preview city={preview} />
+      </section>
+
+      <section className="city-directory">
+        <div className="directory-head">
+          <div><span className="eyebrow">Operação por município</span><h2>Escolha onde trabalhar</h2></div>
+          <label className="search-field"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar município" /></label>
+        </div>
+        <div className="citylist">
+          {normalized ? filtered.map((city) => <CityRow key={city.codigo} city={city} onPreview={setPreview} />) : <>
+            <div className="subhead">Sudoeste Goiano <span>{southwest.length}</span></div>
+            {southwest.map((city) => <CityRow key={city.codigo} city={city} onPreview={setPreview} />)}
+            <div className="subhead">Demais municípios <span>{others.length}</span></div>
+            {others.map((city) => <CityRow key={city.codigo} city={city} onPreview={setPreview} />)}
+          </>}
+          {!filtered.length ? <div className="empty">Nenhum município encontrado.</div> : null}
+        </div>
+      </section>
     </main>
   );
 }
