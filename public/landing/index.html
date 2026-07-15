@@ -41,8 +41,12 @@ a:hover{color:#163c7e}
 .ally-layout{margin:52px auto 0;display:grid;grid-template-columns:minmax(260px,380px) minmax(0,1fr);gap:44px;align-items:center;max-width:900px}
 .ally-photo{margin:0;border-radius:24px;overflow:hidden;background:#163c7e;box-shadow:0 22px 46px rgba(0,0,0,.28);transform:rotate(-1deg)}
 .ally-photo img{display:block;width:100%;height:auto;aspect-ratio:3/4;object-fit:cover}
+.header-actions{display:flex;align-items:center;gap:8px}
+.intel-link{display:inline-flex;align-items:center;gap:8px;border:2px solid rgba(29,75,155,.3);border-radius:999px;background:rgba(247,242,220,.82);color:#1d4b9b;font-size:12px;font-weight:800;padding:9px 14px;text-decoration:none;white-space:nowrap;backdrop-filter:blur(8px);transition:background .15s ease,color .15s ease,transform .15s ease}
+.intel-link:hover{background:#1d4b9b;color:#f7f2dc;transform:translateY(-2px)}
 @media(max-width:1050px){.instagram-grid{grid-template-columns:1fr;max-width:540px}}
 @media(max-width:760px){.ally-layout{grid-template-columns:1fr;gap:30px}.ally-photo{width:min(100%,440px);margin:0 auto}.ally-copy{text-align:left}}
+@media(max-width:560px){.intel-link{padding:9px}.intel-label{display:none}.group-label{display:none}}
 image-slot#hero-bg::part(empty){color:transparent}
 </style>
 </helmet>
@@ -58,10 +62,16 @@ image-slot#hero-bg::part(empty){color:transparent}
       </span>
       <span style="font-size:9px;letter-spacing:.09em;font-weight:800;color:#f1592a;text-transform:uppercase">Pré-candidato a Deputado Estadual</span>
     </a>
-    <a href="{{ ctaLink }}" style="display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#f1592a;color:#f7f2dc;font-size:13px;font-weight:800;padding:11px 18px;text-decoration:none;white-space:nowrap;box-shadow:0 6px 18px rgba(241,89,42,.3);transition:transform .15s ease,box-shadow .15s ease" style-hover="transform:translateY(-2px);box-shadow:0 10px 24px rgba(241,89,42,.45)" style-active="transform:translateY(0) scale(0.96);box-shadow:0 4px 10px rgba(241,89,42,.3)">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0"><path d="M12 2C6.48 2 2 6.32 2 11.65c0 1.9.57 3.67 1.55 5.16L2.2 21.8l5.16-1.31A10.3 10.3 0 0 0 12 21.3c5.52 0 10-4.32 10-9.65S17.52 2 12 2Zm0 17.5a8.5 8.5 0 0 1-4.1-1.04l-.3-.17-3.06.78.83-2.87-.2-.3a7.66 7.66 0 0 1-1.37-4.25c0-4.33 3.68-7.85 8.2-7.85s8.2 3.52 8.2 7.85-3.68 7.85-8.2 7.85Zm4.5-5.87c-.25-.12-1.47-.7-1.7-.78-.23-.08-.4-.12-.56.12-.17.25-.65.78-.8.94-.14.17-.29.19-.54.06a6.7 6.7 0 0 1-1.97-1.17 7.1 7.1 0 0 1-1.36-1.63c-.14-.24-.01-.37.11-.5.11-.1.25-.28.37-.42.12-.14.16-.24.25-.4.08-.17.04-.31-.02-.44-.06-.12-.56-1.3-.77-1.78-.2-.47-.4-.4-.56-.41h-.48c-.16 0-.44.06-.67.3-.23.24-.87.82-.87 2s.9 2.32 1.02 2.48c.12.16 1.76 2.6 4.27 3.64.6.25 1.06.4 1.42.51.6.18 1.14.16 1.57.1.48-.07 1.47-.58 1.68-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.47-.28Z"></path></svg>
-      <span>ENTRAR NO GRUPO</span>
-    </a>
+    <div class="header-actions">
+      <a class="intel-link" href="https://dados.tocomdrlourival.com" aria-label="Abrir dados da campanha" title="Dados da campanha">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex-shrink:0"><path d="M4 19V9m6 10V5m6 14v-7m4 7H2"></path></svg>
+        <span class="intel-label">INTELIGÊNCIA</span>
+      </a>
+      <a href="{{ ctaLink }}" aria-label="Entrar no grupo de apoio" style="display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:#f1592a;color:#f7f2dc;font-size:13px;font-weight:800;padding:11px 18px;text-decoration:none;white-space:nowrap;box-shadow:0 6px 18px rgba(241,89,42,.3);transition:transform .15s ease,box-shadow .15s ease" style-hover="transform:translateY(-2px);box-shadow:0 10px 24px rgba(241,89,42,.45)" style-active="transform:translateY(0) scale(0.96);box-shadow:0 4px 10px rgba(241,89,42,.3)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0"><path d="M12 2C6.48 2 2 6.32 2 11.65c0 1.9.57 3.67 1.55 5.16L2.2 21.8l5.16-1.31A10.3 10.3 0 0 0 12 21.3c5.52 0 10-4.32 10-9.65S17.52 2 12 2Zm0 17.5a8.5 8.5 0 0 1-4.1-1.04l-.3-.17-3.06.78.83-2.87-.2-.3a7.66 7.66 0 0 1-1.37-4.25c0-4.33 3.68-7.85 8.2-7.85s8.2 3.52 8.2 7.85-3.68 7.85-8.2 7.85Zm4.5-5.87c-.25-.12-1.47-.7-1.7-.78-.23-.08-.4-.12-.56.12-.17.25-.65.78-.8.94-.14.17-.29.19-.54.06a6.7 6.7 0 0 1-1.97-1.17 7.1 7.1 0 0 1-1.36-1.63c-.14-.24-.01-.37.11-.5.11-.1.25-.28.37-.42.12-.14.16-.24.25-.4.08-.17.04-.31-.02-.44-.06-.12-.56-1.3-.77-1.78-.2-.47-.4-.4-.56-.41h-.48c-.16 0-.44.06-.67.3-.23.24-.87.82-.87 2s.9 2.32 1.02 2.48c.12.16 1.76 2.6 4.27 3.64.6.25 1.06.4 1.42.51.6.18 1.14.16 1.57.1.48-.07 1.47-.58 1.68-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.47-.28Z"></path></svg>
+        <span class="group-label">ENTRAR NO GRUPO</span>
+      </a>
+    </div>
   </div>
 </header>
 
