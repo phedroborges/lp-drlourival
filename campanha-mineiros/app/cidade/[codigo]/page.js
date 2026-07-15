@@ -7,9 +7,11 @@ import TerritoryBoard from "./TerritoryBoard";
 import RoutePlanner from "./RoutePlanner";
 import PersonModal from "./PersonModal";
 import CaboModal from "./CaboModal";
+import OperationBoard from "./OperationBoard";
 
 const TABS = [
   { id: "visao", label: "Visão geral" },
+  { id: "operacao", label: "Operação" },
   { id: "pessoas", label: "Pessoas" },
   { id: "territorios", label: "Territórios" },
   { id: "rotas", label: "Rotas no mapa" },
@@ -84,10 +86,11 @@ export default function CidadePage({ params }) {
         <article><span>Cabos eleitorais</span><strong>{cabos}</strong><small>em campo</small></article>
         <article><span>Cobertura</span><strong>{activeTerritories}<em>/{bairros.length}</em></strong><small>territórios ativos</small></article>
       </section>
-      <nav className="city-tabs" aria-label="Seções da cidade">{TABS.map((item) => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}{item.id === "pessoas" ? <span>{cidade.lideres.length}</span> : item.id === "territorios" ? <span>{bairros.length}</span> : item.id === "rotas" ? <span>{cidade.rotas.length}</span> : null}</button>)}</nav>
+      <nav className="city-tabs" aria-label="Seções da cidade">{TABS.map((item) => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}{item.id === "operacao" ? <span>{cidade.tarefas?.length || 0}</span> : item.id === "pessoas" ? <span>{cidade.lideres.length}</span> : item.id === "territorios" ? <span>{bairros.length}</span> : item.id === "rotas" ? <span>{cidade.rotas.length}</span> : null}</button>)}</nav>
       {error ? <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div> : null}
       <section className="city-content">
         {tab === "visao" ? <><div className="section-toolbar"><div><span className="eyebrow">Organograma territorial</span><h2>Quem coordena quem — e onde</h2><p>A estrutura é montada pelos vínculos cadastrados, sem duplicar informações na tela.</p></div><button className="secondary-button" onClick={() => setTab("pessoas")}>Gerenciar pessoas</button></div><OrgChart cidade={cidade} onEdit={openPerson} onAdd={openPerson} /></> : null}
+        {tab === "operacao" ? <OperationBoard cidade={cidade} onChanged={reload} onOpenRoutes={() => setTab("rotas")} /> : null}
         {tab === "pessoas" ? <PeopleView cidade={cidade} onEdit={openPerson} onAdd={openPerson} /> : null}
         {tab === "territorios" ? <TerritoryBoard cidade={cidade} onAddBairro={(name) => run(() => request("/api/bairros", "POST", { municipio_codigo: code, nome: name }))} onDeleteBairro={(bairro) => confirm(`Excluir “${bairro.nome}” e seus cabos?`) && run(() => request("/api/bairros", "DELETE", { id: bairro.id }))} onCabo={(cabo, bairro) => setCaboModal({ cabo, bairro })} onAssign={(lider_id, bairro_id) => run(() => request("/api/assign", "POST", { lider_id, bairro_id }))} onUnassign={(lider_id, bairro_id) => run(() => request("/api/assign", "DELETE", { lider_id, bairro_id }))} /> : null}
         {tab === "rotas" ? <RoutePlanner cidade={cidade} onChanged={reload} /> : null}

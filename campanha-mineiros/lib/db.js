@@ -1,6 +1,7 @@
 // Banco de dados local SQLite (driver nativo do Node 24: node:sqlite).
 // Roda SOMENTE no servidor.
 import { DatabaseSync } from "node:sqlite";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { MUNICIPIOS, MINEIROS_CODIGO } from "./municipiosSeed.js";
@@ -123,6 +124,30 @@ function init() {
       FOREIGN KEY (cabo_id) REFERENCES cabo(id) ON DELETE SET NULL,
       FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE SET NULL
     );
+    CREATE TABLE IF NOT EXISTS tarefa_rota (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      rota_id     INTEGER NOT NULL,
+      bairro_id   INTEGER,
+      data        TEXT NOT NULL,
+      turno       TEXT NOT NULL DEFAULT 'Manhã',
+      observacao  TEXT NOT NULL DEFAULT '',
+      token       TEXT NOT NULL UNIQUE,
+      status      TEXT NOT NULL DEFAULT 'planejada',
+      criado_em   TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (rota_id) REFERENCES rota(id) ON DELETE CASCADE,
+      FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE SET NULL
+    );
+    CREATE TABLE IF NOT EXISTS tarefa_rota_cabo (
+      tarefa_id    INTEGER NOT NULL,
+      cabo_id      INTEGER NOT NULL,
+      status       TEXT NOT NULL DEFAULT 'pendente',
+      iniciado_em  TEXT,
+      concluido_em TEXT,
+      observacao   TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (tarefa_id, cabo_id),
+      FOREIGN KEY (tarefa_id) REFERENCES tarefa_rota(id) ON DELETE CASCADE,
+      FOREIGN KEY (cabo_id) REFERENCES cabo(id) ON DELETE CASCADE
+    );
   `);
 
   // Migrações incrementais para instalações que já possuem dados.
@@ -142,6 +167,7 @@ function init() {
   ensureColumn("cabo", "endereco", "TEXT NOT NULL DEFAULT ''");
   ensureColumn("cabo", "lat", "REAL");
   ensureColumn("cabo", "lng", "REAL");
+  ensureColumn("rota", "bairro_id", "INTEGER");
 
   // Semear os 246 municípios (idempotente).
   const insMun = db.prepare("INSERT OR IGNORE INTO municipio (codigo, nome, sudoeste) VALUES (?, ?, ?)");
@@ -160,6 +186,13 @@ function init() {
     if (nLid === 0) {
       const insL = db.prepare("INSERT INTO lider (municipio_codigo, nome, cargo, classificacao, observacao) VALUES (?, ?, ?, ?, ?)");
       for (const [nome, cargo, cor, obs] of LIDERES_SEED) insL.run(MINEIROS_CODIGO, nome, cargo, cor, obs);
+    }
+    const pedro = db.prepare("SELECT id FROM lider WHERE municipio_codigo = ? AND nome = ?").get(MINEIROS_CODIGO, "Pedro Borges");
+    if (!pedro) {
+      db.prepare(`INSERT INTO lider
+        (municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(MINEIROS_CODIGO, "Pedro Borges", "Coordenação municipal", "(64) 99999-0001", "verde", "Coordenador responsável pela operação de Mineiros", "coordenacao");
     }
   }
 
@@ -236,7 +269,8 @@ export function getMunicipio(codigo) {
     g.bairros.push(b);
   }
   const rotas = getRotas(codigo);
-  return { ...m, lideres: lideres.map((lider) => ({ ...lider, bairro_ids: bairrosPorLider.get(lider.id) || [] })), grupos, rotas };
+  const tarefas = getTarefas(codigo);
+  return { ...m, lideres: lideres.map((lider) => ({ ...lider, bairro_ids: bairrosPorLider.get(lider.id) || [] })), grupos, rotas, tarefas };
 }
 
 /* ------------------------- Lideranças ------------------------- */
@@ -299,7 +333,8 @@ export function deleteCabo(id) { db.prepare("DELETE FROM cabo WHERE id = ?").run
 
 /* ------------------------- Rotas de rua ------------------------- */
 export function getRotas(municipio_codigo) {
-  const rotas = db.prepare("SELECT * FROM rota WHERE municipio_codigo = ? ORDER BY id DESC").all(municipio_codigo);
+  const rotas = db.prepare(`SELECT r.*, b.nome AS bairro_nome FROM rota r
+    LEFT JOIN bairro b ON b.id = r.bairro_id WHERE r.municipio_codigo = ? ORDER BY r.id DESC`).all(municipio_codigo);
   const pontosQuery = db.prepare(`
     SELECT rp.*, c.nome AS cabo_nome, b.nome AS bairro_nome
       FROM rota_ponto rp
@@ -313,14 +348,14 @@ export function getRotas(municipio_codigo) {
     pontos: pontosQuery.all(rota.id),
   }));
 }
-export function createRota({ municipio_codigo, nome }) {
-  const r = db.prepare("INSERT INTO rota (municipio_codigo, nome) VALUES (?, ?)").run(municipio_codigo, String(nome).trim());
+export function createRota({ municipio_codigo, nome, bairro_id = null }) {
+  const r = db.prepare("INSERT INTO rota (municipio_codigo, nome, bairro_id) VALUES (?, ?, ?)").run(municipio_codigo, String(nome).trim(), bairro_id || null);
   return getRotas(municipio_codigo).find((rota) => rota.id === Number(r.lastInsertRowid));
 }
-export function updateRota({ id, nome, status, geometria, distancia_m, duracao_s }) {
+export function updateRota({ id, nome, bairro_id, status, geometria, distancia_m, duracao_s }) {
   db.prepare(`UPDATE rota SET nome=COALESCE(?,nome), status=COALESCE(?,status), geometria=COALESCE(?,geometria),
-    distancia_m=COALESCE(?,distancia_m), duracao_s=COALESCE(?,duracao_s) WHERE id=?`)
-    .run(nome ?? null, status ?? null, geometria === undefined ? null : JSON.stringify(geometria || null), distancia_m ?? null, duracao_s ?? null, id);
+    distancia_m=COALESCE(?,distancia_m), duracao_s=COALESCE(?,duracao_s), bairro_id=COALESCE(?,bairro_id) WHERE id=?`)
+    .run(nome ?? null, status ?? null, geometria === undefined ? null : JSON.stringify(geometria || null), distancia_m ?? null, duracao_s ?? null, bairro_id ?? null, id);
   return db.prepare("SELECT * FROM rota WHERE id = ?").get(id);
 }
 export function deleteRota(id) { db.prepare("DELETE FROM rota WHERE id = ?").run(id); }
@@ -335,6 +370,91 @@ export function updateRotaPonto({ id, label, ordem }) {
   return db.prepare("SELECT * FROM rota_ponto WHERE id = ?").get(id);
 }
 export function deleteRotaPonto(id) { db.prepare("DELETE FROM rota_ponto WHERE id = ?").run(id); }
+
+/* ------------------------- Operação de campo ------------------------- */
+function statusDaTarefa(tarefa) {
+  if (tarefa.status === "cancelada") return "cancelada";
+  const total = tarefa.cabos.length;
+  const concluidos = tarefa.cabos.filter((cabo) => cabo.status === "concluida").length;
+  const iniciados = tarefa.cabos.filter((cabo) => cabo.status === "andamento").length;
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  if (total && concluidos === total) return "concluida";
+  if (iniciados || concluidos) return "andamento";
+  if (tarefa.data < hoje) return "atrasada";
+  return "planejada";
+}
+
+function montarTarefa(tarefa) {
+  if (!tarefa) return null;
+  const cabos = db.prepare(`SELECT trc.*, c.nome, c.contato
+    FROM tarefa_rota_cabo trc JOIN cabo c ON c.id = trc.cabo_id
+    WHERE trc.tarefa_id = ? ORDER BY c.nome COLLATE NOCASE`).all(tarefa.id);
+  const pontos = db.prepare("SELECT * FROM rota_ponto WHERE rota_id = ? ORDER BY ordem, id").all(tarefa.rota_id);
+  const result = { ...tarefa, cabos, pontos };
+  result.status_calculado = statusDaTarefa(result);
+  result.concluidos = cabos.filter((cabo) => cabo.status === "concluida").length;
+  return result;
+}
+
+export function getTarefas(municipio_codigo) {
+  return db.prepare(`SELECT t.*, r.nome AS rota_nome, r.municipio_codigo, b.nome AS bairro_nome
+    FROM tarefa_rota t JOIN rota r ON r.id = t.rota_id
+    LEFT JOIN bairro b ON b.id = t.bairro_id
+    WHERE r.municipio_codigo = ? ORDER BY t.data DESC, t.id DESC`).all(municipio_codigo).map(montarTarefa);
+}
+
+export function getTarefaByToken(token) {
+  const tarefa = db.prepare(`SELECT t.*, r.nome AS rota_nome, r.municipio_codigo, m.nome AS municipio_nome,
+    b.nome AS bairro_nome FROM tarefa_rota t JOIN rota r ON r.id = t.rota_id
+    JOIN municipio m ON m.codigo = r.municipio_codigo LEFT JOIN bairro b ON b.id = t.bairro_id
+    WHERE t.token = ?`).get(token);
+  return montarTarefa(tarefa);
+}
+
+export function createTarefa({ rota_id, bairro_id = null, data, turno = "Manhã", observacao = "", cabo_ids = [] }) {
+  const rota = db.prepare("SELECT * FROM rota WHERE id = ?").get(rota_id);
+  if (!rota) throw new Error("Rota não encontrada");
+  if (rota.status !== "finalizada") throw new Error("Finalize a rota antes de criar o plano de campo");
+  const pointCount = db.prepare("SELECT COUNT(*) AS total FROM rota_ponto WHERE rota_id = ?").get(rota_id).total;
+  if (pointCount < 2) throw new Error("A rota precisa ter partida e chegada");
+  const targetBairro = Number(bairro_id || rota.bairro_id);
+  if (!targetBairro) throw new Error("Escolha o bairro atendido pela rota");
+  const uniqueCabos = [...new Set(cabo_ids.map(Number))];
+  const caboNoBairro = db.prepare("SELECT 1 FROM cabo WHERE id = ? AND bairro_id = ?");
+  if (uniqueCabos.some((caboId) => !caboNoBairro.get(caboId, targetBairro))) {
+    throw new Error("Todos os cabos precisam pertencer ao bairro escolhido");
+  }
+  const token = randomUUID();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = db.prepare(`INSERT INTO tarefa_rota (rota_id, bairro_id, data, turno, observacao, token)
+      VALUES (?, ?, ?, ?, ?, ?)`).run(rota_id, targetBairro, data, turno, observacao, token);
+    const tarefaId = Number(result.lastInsertRowid);
+    const insertCabo = db.prepare("INSERT INTO tarefa_rota_cabo (tarefa_id, cabo_id) VALUES (?, ?)");
+    for (const caboId of uniqueCabos) insertCabo.run(tarefaId, caboId);
+    db.exec("COMMIT");
+    return getTarefaByToken(token);
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function updateTarefaCabo({ token, cabo_id, status, observacao }) {
+  const allowed = new Set(["pendente", "andamento", "concluida"]);
+  if (!allowed.has(status)) throw new Error("Status inválido");
+  const tarefa = db.prepare("SELECT id FROM tarefa_rota WHERE token = ?").get(token);
+  if (!tarefa) throw new Error("Plano de campo não encontrado");
+  const atual = db.prepare("SELECT * FROM tarefa_rota_cabo WHERE tarefa_id = ? AND cabo_id = ?").get(tarefa.id, cabo_id);
+  if (!atual) throw new Error("Cabo não pertence a este plano");
+  const iniciado = status === "andamento" && !atual.iniciado_em ? new Date().toISOString() : atual.iniciado_em;
+  const concluido = status === "concluida" ? new Date().toISOString() : null;
+  db.prepare(`UPDATE tarefa_rota_cabo SET status=?, iniciado_em=?, concluido_em=?, observacao=COALESCE(?,observacao)
+    WHERE tarefa_id=? AND cabo_id=?`).run(status, iniciado, concluido, observacao ?? null, tarefa.id, cabo_id);
+  return getTarefaByToken(token);
+}
+
+export function deleteTarefa(id) { db.prepare("DELETE FROM tarefa_rota WHERE id = ?").run(id); }
 
 /* ------------------------- Equipe / Export ------------------------- */
 export function getEquipe() {
@@ -436,5 +556,7 @@ export function exportAll() {
     cabos: db.prepare("SELECT * FROM cabo ORDER BY id").all(),
     rotas: db.prepare("SELECT * FROM rota ORDER BY id").all(),
     rota_pontos: db.prepare("SELECT * FROM rota_ponto ORDER BY rota_id, ordem").all(),
+    tarefas_rota: db.prepare("SELECT * FROM tarefa_rota ORDER BY id").all(),
+    tarefas_cabos: db.prepare("SELECT * FROM tarefa_rota_cabo ORDER BY tarefa_id, cabo_id").all(),
   };
 }

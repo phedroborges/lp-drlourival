@@ -1,6 +1,6 @@
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
-import Nav from "./Nav";
+import AppFrame from "./AppFrame";
 import { Kanit } from "next/font/google";
 
 const kanit = Kanit({
@@ -19,16 +19,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" className={kanit.variable}>
       <body>
-        <div className="app">
-          <Nav />
-          <div className="workspace-shell">
-            <header className="app-topbar">
-              <div><span className="topbar-dot" /><strong>Central de dados</strong></div>
-              <div className="topbar-actions"><span>Atualização em tempo real</span><span className="topbar-avatar">DL</span></div>
-            </header>
-            <div className="main">{children}</div>
-          </div>
-        </div>
+        <AppFrame>{children}</AppFrame>
       </body>
     </html>
   );
