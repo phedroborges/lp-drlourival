@@ -148,7 +148,27 @@ function init() {
       FOREIGN KEY (tarefa_id) REFERENCES tarefa_rota(id) ON DELETE CASCADE,
       FOREIGN KEY (cabo_id) REFERENCES cabo(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS orcamento_config (
+      id                  INTEGER PRIMARY KEY CHECK (id = 1),
+      nome_cenario        TEXT NOT NULL DEFAULT 'Cenário base',
+      fundo_total         REAL NOT NULL DEFAULT 0,
+      reserva_percentual  REAL NOT NULL DEFAULT 5,
+      atualizado_em       TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS orcamento_item (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      categoria       TEXT NOT NULL DEFAULT 'Outros',
+      nome            TEXT NOT NULL,
+      vinculo         TEXT NOT NULL DEFAULT 'manual',
+      quantidade      REAL NOT NULL DEFAULT 1,
+      periodos        REAL NOT NULL DEFAULT 1,
+      custo_unitario  REAL NOT NULL DEFAULT 0,
+      observacao      TEXT NOT NULL DEFAULT '',
+      ordem           INTEGER NOT NULL DEFAULT 0,
+      criado_em       TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+  db.prepare("INSERT OR IGNORE INTO orcamento_config (id) VALUES (1)").run();
 
   // Migrações incrementais para instalações que já possuem dados.
   const ensureColumn = (table, column, definition) => {
@@ -496,6 +516,81 @@ export function getDashboard() {
   };
 }
 
+/* ------------------------- Orçamento da campanha ------------------------- */
+function budgetNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
+function getBudgetCounters() {
+  const cabos = db.prepare("SELECT COUNT(*) AS total FROM cabo").get().total;
+  const liderancas = db.prepare("SELECT COUNT(*) AS total FROM lider WHERE nivel <> 'coordenacao'").get().total;
+  const coordenadores = db.prepare("SELECT COUNT(*) AS total FROM lider WHERE nivel = 'coordenacao'").get().total;
+  return { cabos, liderancas, coordenadores, equipe: cabos + liderancas + coordenadores };
+}
+
+export function getOrcamento() {
+  db.prepare("INSERT OR IGNORE INTO orcamento_config (id) VALUES (1)").run();
+  const config = db.prepare("SELECT * FROM orcamento_config WHERE id = 1").get();
+  const contadores = getBudgetCounters();
+  const items = db.prepare("SELECT * FROM orcamento_item ORDER BY ordem, id").all().map((item) => {
+    const quantidade_calculada = item.vinculo === "manual" ? Number(item.quantidade) : Number(contadores[item.vinculo] || 0);
+    const total = quantidade_calculada * Number(item.periodos) * Number(item.custo_unitario);
+    return { ...item, quantidade_calculada, total };
+  });
+  const categoriasMap = new Map();
+  for (const item of items) categoriasMap.set(item.categoria, (categoriasMap.get(item.categoria) || 0) + item.total);
+  const categorias = [...categoriasMap.entries()].map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total);
+  const planejado = items.reduce((sum, item) => sum + item.total, 0);
+  const reserva = Number(config.fundo_total) * Number(config.reserva_percentual) / 100;
+  const saldo = Number(config.fundo_total) - planejado - reserva;
+  return {
+    config,
+    contadores,
+    items,
+    categorias,
+    resumo: {
+      planejado,
+      reserva,
+      saldo,
+      percentual_comprometido: Number(config.fundo_total) > 0 ? (planejado / Number(config.fundo_total)) * 100 : 0,
+    },
+  };
+}
+
+export function updateOrcamentoConfig({ nome_cenario, fundo_total, reserva_percentual }) {
+  db.prepare(`UPDATE orcamento_config SET nome_cenario=COALESCE(?,nome_cenario), fundo_total=COALESCE(?,fundo_total),
+    reserva_percentual=COALESCE(?,reserva_percentual), atualizado_em=datetime('now') WHERE id=1`)
+    .run(nome_cenario?.trim() || null, fundo_total === undefined ? null : budgetNumber(fundo_total),
+      reserva_percentual === undefined ? null : Math.min(100, budgetNumber(reserva_percentual)));
+  return getOrcamento();
+}
+
+export function createOrcamentoItem({ categoria = "Outros", nome, vinculo = "manual", quantidade = 1, periodos = 1, custo_unitario = 0, observacao = "" }) {
+  if (!String(nome || "").trim()) throw new Error("Informe o nome do custo");
+  const allowed = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
+  const ordem = db.prepare("SELECT COALESCE(MAX(ordem), -1) + 1 AS ordem FROM orcamento_item").get().ordem;
+  const result = db.prepare(`INSERT INTO orcamento_item (categoria,nome,vinculo,quantidade,periodos,custo_unitario,observacao,ordem)
+    VALUES (?,?,?,?,?,?,?,?)`).run(String(categoria || "Outros").trim(), String(nome).trim(), allowed.has(vinculo) ? vinculo : "manual",
+      budgetNumber(quantidade, 1), budgetNumber(periodos, 1), budgetNumber(custo_unitario), String(observacao || "").trim(), ordem);
+  return getOrcamento().items.find((item) => item.id === Number(result.lastInsertRowid));
+}
+
+export function updateOrcamentoItem({ id, categoria, nome, vinculo, quantidade, periodos, custo_unitario, observacao }) {
+  const allowed = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
+  db.prepare(`UPDATE orcamento_item SET categoria=COALESCE(?,categoria), nome=COALESCE(?,nome), vinculo=COALESCE(?,vinculo),
+    quantidade=COALESCE(?,quantidade), periodos=COALESCE(?,periodos), custo_unitario=COALESCE(?,custo_unitario),
+    observacao=COALESCE(?,observacao) WHERE id=?`).run(categoria?.trim() || null, nome?.trim() || null,
+      vinculo === undefined ? null : (allowed.has(vinculo) ? vinculo : "manual"),
+      quantidade === undefined ? null : budgetNumber(quantidade), periodos === undefined ? null : budgetNumber(periodos),
+      custo_unitario === undefined ? null : budgetNumber(custo_unitario), observacao === undefined ? null : String(observacao).trim(), id);
+  return getOrcamento().items.find((item) => item.id === Number(id));
+}
+
+export function deleteOrcamentoItem(id) {
+  db.prepare("DELETE FROM orcamento_item WHERE id = ?").run(id);
+}
+
 /* ------------------------- Estratégias ------------------------- */
 export function getEstrategias() {
   return db.prepare("SELECT * FROM estrategia ORDER BY id DESC").all();
@@ -558,5 +653,7 @@ export function exportAll() {
     rota_pontos: db.prepare("SELECT * FROM rota_ponto ORDER BY rota_id, ordem").all(),
     tarefas_rota: db.prepare("SELECT * FROM tarefa_rota ORDER BY id").all(),
     tarefas_cabos: db.prepare("SELECT * FROM tarefa_rota_cabo ORDER BY tarefa_id, cabo_id").all(),
+    orcamento_config: db.prepare("SELECT * FROM orcamento_config").all(),
+    orcamento_itens: db.prepare("SELECT * FROM orcamento_item ORDER BY ordem, id").all(),
   };
 }
