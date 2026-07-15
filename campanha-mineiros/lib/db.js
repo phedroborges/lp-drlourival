@@ -99,7 +99,49 @@ function init() {
       categoria  TEXT NOT NULL DEFAULT 'Geral',
       criado_em  TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS rota (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      municipio_codigo INTEGER NOT NULL,
+      nome             TEXT NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'planejamento',
+      geometria        TEXT NOT NULL DEFAULT '',
+      distancia_m      REAL NOT NULL DEFAULT 0,
+      duracao_s        REAL NOT NULL DEFAULT 0,
+      criado_em        TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (municipio_codigo) REFERENCES municipio(codigo) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS rota_ponto (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      rota_id   INTEGER NOT NULL,
+      cabo_id   INTEGER,
+      bairro_id INTEGER,
+      label     TEXT NOT NULL DEFAULT '',
+      lat       REAL NOT NULL,
+      lng       REAL NOT NULL,
+      ordem     INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (rota_id) REFERENCES rota(id) ON DELETE CASCADE,
+      FOREIGN KEY (cabo_id) REFERENCES cabo(id) ON DELETE SET NULL,
+      FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE SET NULL
+    );
   `);
+
+  // Migrações incrementais para instalações que já possuem dados.
+  const ensureColumn = (table, column, definition) => {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((item) => item.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  };
+  ensureColumn("lider", "nivel", "TEXT NOT NULL DEFAULT 'lideranca'");
+  ensureColumn("lider", "responsavel_id", "INTEGER");
+  ensureColumn("lider", "endereco", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn("lider", "lat", "REAL");
+  ensureColumn("lider", "lng", "REAL");
+  ensureColumn("bairro", "lat", "REAL");
+  ensureColumn("bairro", "lng", "REAL");
+  ensureColumn("cabo", "endereco", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn("cabo", "lat", "REAL");
+  ensureColumn("cabo", "lng", "REAL");
 
   // Semear os 246 municípios (idempotente).
   const insMun = db.prepare("INSERT OR IGNORE INTO municipio (codigo, nome, sudoeste) VALUES (?, ?, ?)");
@@ -124,8 +166,19 @@ function init() {
   return db;
 }
 
-const globalRef = globalThis;
-export const db = globalRef.__campanhaDb ?? (globalRef.__campanhaDb = init());
+function getDb() {
+  if (!globalThis.__campanhaDb) globalThis.__campanhaDb = init();
+  return globalThis.__campanhaDb;
+}
+
+// Mantém a API interna existente, mas só abre o SQLite na primeira consulta.
+export const db = new Proxy({}, {
+  get(_target, property) {
+    const database = getDb();
+    const value = database[property];
+    return typeof value === "function" ? value.bind(database) : value;
+  },
+});
 
 function tierOf(total) { return total === 0 ? 0 : total === 1 ? 1 : total <= 3 ? 2 : 3; }
 
@@ -134,8 +187,18 @@ export function getEstado() {
   const rows = db.prepare(`
     SELECT m.codigo, m.nome, m.sudoeste,
       (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo) AS nLideres,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel = 'coordenacao') AS nCoordenadores,
       (SELECT COUNT(*) FROM cabo c JOIN bairro b ON b.id = c.bairro_id WHERE b.municipio_codigo = m.codigo) AS nCabos,
-      (SELECT COUNT(*) FROM bairro b WHERE b.municipio_codigo = m.codigo) AS nBairros
+      (SELECT COUNT(*) FROM bairro b WHERE b.municipio_codigo = m.codigo) AS nBairros,
+      (SELECT COUNT(DISTINCT b.id) FROM bairro b
+        WHERE b.municipio_codigo = m.codigo AND (
+          EXISTS (SELECT 1 FROM lider_bairro lb WHERE lb.bairro_id = b.id)
+          OR EXISTS (SELECT 1 FROM cabo c WHERE c.bairro_id = b.id)
+        )) AS nBairrosAtivos,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = 'verde') AS nVerde,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = 'amarelo') AS nAmarelo,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = 'vermelho') AS nVermelho,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = '') AS nSem
     FROM municipio m ORDER BY m.nome COLLATE NOCASE
   `).all();
   return rows.map((r) => ({ ...r, total: r.nLideres + r.nCabos, tier: tierOf(r.nLideres + r.nCabos) }));
@@ -145,18 +208,21 @@ export function getEstado() {
 export function getMunicipio(codigo) {
   const m = db.prepare("SELECT * FROM municipio WHERE codigo = ?").get(codigo);
   if (!m) return null;
-  const lideres = db.prepare("SELECT * FROM lider WHERE municipio_codigo = ? ORDER BY nome COLLATE NOCASE").all(codigo);
+  const lideres = db.prepare("SELECT * FROM lider WHERE municipio_codigo = ? ORDER BY CASE nivel WHEN 'coordenacao' THEN 0 ELSE 1 END, nome COLLATE NOCASE").all(codigo);
   const bairros = db.prepare("SELECT * FROM bairro WHERE municipio_codigo = ? ORDER BY ordem, nome").all(codigo);
+  const bairrosPorLider = new Map();
   const bid = new Map(bairros.map((b) => [b.id, { ...b, lideres: [], cabos: [] }]));
   if (bairros.length) {
     const ph = bairros.map(() => "?").join(",");
     const ids = bairros.map((b) => b.id);
     for (const row of db.prepare(
-      `SELECT lb.bairro_id, l.id, l.nome, l.cargo, l.contato, l.classificacao
+      `SELECT lb.bairro_id, l.id, l.nome, l.cargo, l.contato, l.classificacao, l.nivel, l.responsavel_id
          FROM lider_bairro lb JOIN lider l ON l.id = lb.lider_id
         WHERE lb.bairro_id IN (${ph}) ORDER BY l.nome COLLATE NOCASE`
     ).all(...ids)) {
-      bid.get(row.bairro_id)?.lideres.push({ id: row.id, nome: row.nome, cargo: row.cargo, contato: row.contato, classificacao: row.classificacao });
+      bid.get(row.bairro_id)?.lideres.push({ id: row.id, nome: row.nome, cargo: row.cargo, contato: row.contato, classificacao: row.classificacao, nivel: row.nivel, responsavel_id: row.responsavel_id });
+      if (!bairrosPorLider.has(row.id)) bairrosPorLider.set(row.id, []);
+      bairrosPorLider.get(row.id).push(row.bairro_id);
     }
     for (const c of db.prepare(`SELECT * FROM cabo WHERE bairro_id IN (${ph}) ORDER BY id`).all(...ids)) {
       bid.get(c.bairro_id)?.cabos.push(c);
@@ -169,21 +235,31 @@ export function getMunicipio(codigo) {
     if (!g) { g = { grupo: b.grupo, bairros: [] }; grupos.push(g); }
     g.bairros.push(b);
   }
-  return { ...m, lideres, grupos };
+  const rotas = getRotas(codigo);
+  return { ...m, lideres: lideres.map((lider) => ({ ...lider, bairro_ids: bairrosPorLider.get(lider.id) || [] })), grupos, rotas };
 }
 
 /* ------------------------- Lideranças ------------------------- */
-export function createLider({ municipio_codigo, nome, cargo = "", contato = "", classificacao = "", observacao = "" }) {
+export function createLider({ municipio_codigo, nome, cargo = "", contato = "", classificacao = "", observacao = "", nivel = "lideranca", responsavel_id = null, endereco = "", lat = null, lng = null, bairro_ids = [] }) {
   const r = db.prepare(
-    "INSERT INTO lider (municipio_codigo, nome, cargo, contato, classificacao, observacao) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(municipio_codigo, String(nome).trim(), cargo, contato, classificacao, observacao);
+    "INSERT INTO lider (municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(municipio_codigo, String(nome).trim(), cargo, contato, classificacao, observacao, nivel, responsavel_id || null, endereco, lat, lng);
+  for (const bairroId of bairro_ids || []) assignLider(Number(r.lastInsertRowid), Number(bairroId));
   return db.prepare("SELECT * FROM lider WHERE id = ?").get(r.lastInsertRowid);
 }
-export function updateLider({ id, nome, cargo, contato, classificacao, observacao }) {
+export function updateLider({ id, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng, bairro_ids }) {
+  const atual = db.prepare("SELECT responsavel_id, lat, lng FROM lider WHERE id = ?").get(id);
   db.prepare(
     `UPDATE lider SET nome=COALESCE(?,nome), cargo=COALESCE(?,cargo), contato=COALESCE(?,contato),
-       classificacao=COALESCE(?,classificacao), observacao=COALESCE(?,observacao) WHERE id=?`
-  ).run(nome ?? null, cargo ?? null, contato ?? null, classificacao ?? null, observacao ?? null, id);
+       classificacao=COALESCE(?,classificacao), observacao=COALESCE(?,observacao), nivel=COALESCE(?,nivel),
+       responsavel_id=?, endereco=COALESCE(?,endereco), lat=?, lng=? WHERE id=?`
+  ).run(nome ?? null, cargo ?? null, contato ?? null, classificacao ?? null, observacao ?? null, nivel ?? null,
+    responsavel_id === undefined ? (atual?.responsavel_id ?? null) : (responsavel_id || null), endereco ?? null,
+    lat === undefined ? (atual?.lat ?? null) : lat, lng === undefined ? (atual?.lng ?? null) : lng, id);
+  if (Array.isArray(bairro_ids)) {
+    db.prepare("DELETE FROM lider_bairro WHERE lider_id = ?").run(id);
+    for (const bairroId of bairro_ids) assignLider(id, Number(bairroId));
+  }
   return db.prepare("SELECT * FROM lider WHERE id = ?").get(id);
 }
 export function deleteLider(id) { db.prepare("DELETE FROM lider WHERE id = ?").run(id); }
@@ -206,18 +282,59 @@ export function unassignLider(lider_id, bairro_id) {
 }
 
 /* ------------------------- Cabos ------------------------- */
-export function createCabo({ nome, contato = "", bairro_id, lider_id = null }) {
-  const r = db.prepare("INSERT INTO cabo (bairro_id, lider_id, nome, contato) VALUES (?, ?, ?, ?)")
-    .run(bairro_id, lider_id ?? null, String(nome).trim(), contato);
+export function createCabo({ nome, contato = "", bairro_id, lider_id = null, endereco = "", lat = null, lng = null }) {
+  const r = db.prepare("INSERT INTO cabo (bairro_id, lider_id, nome, contato, endereco, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(bairro_id, lider_id ?? null, String(nome).trim(), contato, endereco, lat, lng);
   return db.prepare("SELECT * FROM cabo WHERE id = ?").get(r.lastInsertRowid);
 }
-export function updateCabo({ id, nome, contato, lider_id }) {
-  const atual = db.prepare("SELECT lider_id FROM cabo WHERE id = ?").get(id);
-  db.prepare("UPDATE cabo SET nome=COALESCE(?,nome), contato=COALESCE(?,contato), lider_id=? WHERE id=?")
-    .run(nome ?? null, contato ?? null, lider_id === undefined ? (atual?.lider_id ?? null) : lider_id, id);
+export function updateCabo({ id, nome, contato, lider_id, bairro_id, endereco, lat, lng }) {
+  const atual = db.prepare("SELECT lider_id, bairro_id, lat, lng FROM cabo WHERE id = ?").get(id);
+  db.prepare("UPDATE cabo SET nome=COALESCE(?,nome), contato=COALESCE(?,contato), lider_id=?, bairro_id=?, endereco=COALESCE(?,endereco), lat=?, lng=? WHERE id=?")
+    .run(nome ?? null, contato ?? null, lider_id === undefined ? (atual?.lider_id ?? null) : lider_id,
+      bairro_id ?? atual?.bairro_id, endereco ?? null, lat === undefined ? (atual?.lat ?? null) : lat,
+      lng === undefined ? (atual?.lng ?? null) : lng, id);
   return db.prepare("SELECT * FROM cabo WHERE id = ?").get(id);
 }
 export function deleteCabo(id) { db.prepare("DELETE FROM cabo WHERE id = ?").run(id); }
+
+/* ------------------------- Rotas de rua ------------------------- */
+export function getRotas(municipio_codigo) {
+  const rotas = db.prepare("SELECT * FROM rota WHERE municipio_codigo = ? ORDER BY id DESC").all(municipio_codigo);
+  const pontosQuery = db.prepare(`
+    SELECT rp.*, c.nome AS cabo_nome, b.nome AS bairro_nome
+      FROM rota_ponto rp
+      LEFT JOIN cabo c ON c.id = rp.cabo_id
+      LEFT JOIN bairro b ON b.id = rp.bairro_id
+     WHERE rp.rota_id = ? ORDER BY rp.ordem, rp.id
+  `);
+  return rotas.map((rota) => ({
+    ...rota,
+    geometria: rota.geometria ? JSON.parse(rota.geometria) : null,
+    pontos: pontosQuery.all(rota.id),
+  }));
+}
+export function createRota({ municipio_codigo, nome }) {
+  const r = db.prepare("INSERT INTO rota (municipio_codigo, nome) VALUES (?, ?)").run(municipio_codigo, String(nome).trim());
+  return getRotas(municipio_codigo).find((rota) => rota.id === Number(r.lastInsertRowid));
+}
+export function updateRota({ id, nome, status, geometria, distancia_m, duracao_s }) {
+  db.prepare(`UPDATE rota SET nome=COALESCE(?,nome), status=COALESCE(?,status), geometria=COALESCE(?,geometria),
+    distancia_m=COALESCE(?,distancia_m), duracao_s=COALESCE(?,duracao_s) WHERE id=?`)
+    .run(nome ?? null, status ?? null, geometria === undefined ? null : JSON.stringify(geometria || null), distancia_m ?? null, duracao_s ?? null, id);
+  return db.prepare("SELECT * FROM rota WHERE id = ?").get(id);
+}
+export function deleteRota(id) { db.prepare("DELETE FROM rota WHERE id = ?").run(id); }
+export function createRotaPonto({ rota_id, cabo_id = null, bairro_id = null, label = "", lat, lng }) {
+  const ordem = db.prepare("SELECT COALESCE(MAX(ordem), -1) + 1 AS o FROM rota_ponto WHERE rota_id = ?").get(rota_id).o;
+  const r = db.prepare("INSERT INTO rota_ponto (rota_id, cabo_id, bairro_id, label, lat, lng, ordem) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(rota_id, cabo_id, bairro_id, label, lat, lng, ordem);
+  return db.prepare("SELECT * FROM rota_ponto WHERE id = ?").get(r.lastInsertRowid);
+}
+export function updateRotaPonto({ id, label, ordem }) {
+  db.prepare("UPDATE rota_ponto SET label=COALESCE(?,label), ordem=COALESCE(?,ordem) WHERE id=?").run(label ?? null, ordem ?? null, id);
+  return db.prepare("SELECT * FROM rota_ponto WHERE id = ?").get(id);
+}
+export function deleteRotaPonto(id) { db.prepare("DELETE FROM rota_ponto WHERE id = ?").run(id); }
 
 /* ------------------------- Equipe / Export ------------------------- */
 export function getEquipe() {
@@ -317,5 +434,7 @@ export function exportAll() {
     lideres: db.prepare("SELECT * FROM lider ORDER BY id").all(),
     lider_bairro: db.prepare("SELECT * FROM lider_bairro").all(),
     cabos: db.prepare("SELECT * FROM cabo ORDER BY id").all(),
+    rotas: db.prepare("SELECT * FROM rota ORDER BY id").all(),
+    rota_pontos: db.prepare("SELECT * FROM rota_ponto ORDER BY rota_id, ordem").all(),
   };
 }

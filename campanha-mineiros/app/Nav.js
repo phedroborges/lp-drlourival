@@ -11,8 +11,8 @@ export default function Nav() {
   const path = usePathname();
   return (
     <aside className="sidebar" aria-label="Navegação principal">
-      <Link href="/" className="side-brand" aria-label="Inteligência da campanha — início">
-        <span className="brand-kicker">Inteligência da campanha</span>
+      <Link href="/" className="side-brand" aria-label="Dados da campanha — início">
+        <span className="brand-kicker">Dados da campanha</span>
         <span className="brand-placa">Dr. Lourival</span>
         <span className="brand-sub">Organização territorial de Goiás</span>
       </Link>

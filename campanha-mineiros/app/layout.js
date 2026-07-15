@@ -1,4 +1,5 @@
 import "./globals.css";
+import "leaflet/dist/leaflet.css";
 import Nav from "./Nav";
 import { Kanit } from "next/font/google";
 
@@ -10,8 +11,8 @@ const kanit = Kanit({
 });
 
 export const metadata = {
-  title: "Campanha Mineiros — Lideranças e Cabos",
-  description: "Gestão de lideranças e cabos eleitorais por bairro em Mineiros/GO",
+  title: "Dados da Campanha — Dr. Lourival",
+  description: "Coordenação territorial, lideranças, cabos e rotas da campanha em Goiás",
 };
 
 export default function RootLayout({ children }) {
