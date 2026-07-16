@@ -44,18 +44,18 @@ export default function OrgChart({ cidade, onEdit, onAdd }) {
 
   return (
     <div className="org-chart">
-      <div className="org-root"><span>Comando municipal</span><strong>{cidade.nome}</strong><small>{cidade.lideres.length} pessoas · {cabos.length} cabos</small></div>
+      <div className="org-root"><span>Coordenação geral · estrutura local</span><strong>{cidade.nome}</strong><small>{coordinators.length} na coordenação da campanha · {leaders.length} lideranças locais · {cabos.length} cabos</small></div>
       <div className="org-trunk" />
       <div className="coord-grid">
         {coordinators.map((coordinator) => {
           const team = leaders.filter((leader) => leader.responsavel_id === coordinator.id);
           return <section className="coord-branch" key={coordinator.id}>
-            <article className="coord-card"><button className="card-edit" onClick={() => onEdit(coordinator)}>Editar</button><span className="role-label">Coordenação</span><div className="person-avatar light">{coordinator.nome.slice(0, 2).toUpperCase()}</div><h3>{coordinator.nome}</h3><p>{coordinator.cargo || "Coordenação municipal"}</p><TemperatureBadge value={coordinator.classificacao} /><div className="coord-summary"><span>{team.length} líderes</span><span>{team.reduce((sum, leader) => sum + (leader.bairro_ids?.length || 0), 0)} territórios</span></div></article>
+            <article className="coord-card"><button className="card-edit" onClick={() => onEdit(coordinator)}>Editar</button><span className="role-label">Coordenação de toda a campanha</span><div className="person-avatar light">{coordinator.nome.slice(0, 2).toUpperCase()}</div><h3>{coordinator.nome}</h3><p>{coordinator.cargo || "Coordenação geral da campanha"}</p><span className="coord-global-note">Mesma coordenação em todas as cidades</span><div className="coord-summary"><span>{team.length} líderes em {cidade.nome}</span><span>{team.reduce((sum, leader) => sum + (leader.bairro_ids?.length || 0), 0)} territórios</span></div></article>
             <div className="branch-line" />
             {team.length ? <LeaderStack leaders={team} bairros={bairros} cabos={cabos} onEdit={onEdit} /> : <button className="empty-branch" onClick={() => onAdd(coordinator.id)}>+ Adicionar liderança nesta coordenação</button>}
           </section>;
         })}
-        {direct.length ? <section className="coord-branch direct-branch"><article className="coord-card neutral-card"><span className="role-label">Ligação direta</span><h3>Equipe da cidade</h3><p>Lideranças ainda sem coordenação definida</p><div className="coord-summary"><span>{direct.length} líderes</span></div></article><div className="branch-line" /><LeaderStack leaders={direct} bairros={bairros} cabos={cabos} onEdit={onEdit} /></section> : null}
+        {direct.length ? <section className="coord-branch direct-branch"><article className="coord-card neutral-card"><span className="role-label">Ligação direta</span><h3>Equipe de {cidade.nome}</h3><p>Lideranças ainda sem responsável definido na coordenação geral</p><div className="coord-summary"><span>{direct.length} líderes</span></div></article><div className="branch-line" /><LeaderStack leaders={direct} bairros={bairros} cabos={cabos} onEdit={onEdit} /></section> : null}
       </div>
     </div>
   );

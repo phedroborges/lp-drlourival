@@ -16,7 +16,7 @@ function CityPreview({ city }) {
   const coverage = city.nBairros ? Math.round((city.nBairrosAtivos / city.nBairros) * 100) : 0;
   return <article className="analytics-card city-preview-card">
     <div className="card-heading"><div><span className="card-kicker">Município selecionado</span><h3>{city.nome}</h3></div>{city.sudoeste ? <span className="soft-badge">Sudoeste</span> : null}</div>
-    <div className="preview-stat-row"><div><strong>{city.nCoordenadores}</strong><span>Coordenação</span></div><div><strong>{city.nLideres}</strong><span>Lideranças</span></div><div><strong>{city.nCabos}</strong><span>Cabos</span></div></div>
+    <div className="preview-stat-row"><div><strong>{city.nCoordenadores}</strong><span>Coordenação geral</span></div><div><strong>{city.nLideres}</strong><span>Lideranças locais</span></div><div><strong>{city.nCabos}</strong><span>Cabos locais</span></div></div>
     <div className="coverage-block"><div><span>Cobertura territorial</span><strong>{coverage}%</strong></div><div className="progress-track"><i style={{ width: `${coverage}%` }} /></div><small>{city.nBairrosAtivos} de {city.nBairros} territórios ativos</small></div>
     <div className="temperature-legend compact"><span><i className="green" />{city.nVerde} apoio</span><span><i className="yellow" />{city.nAmarelo} aproximação</span><span><i className="red" />{city.nVermelho} resistência</span></div>
     <Link className="card-link" href={`/cidade/${city.codigo}`}>Abrir central municipal <span>→</span></Link>

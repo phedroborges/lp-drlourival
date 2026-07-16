@@ -11,11 +11,13 @@ export default function EquipePage() {
   }, []);
 
   const query = q.trim().toLowerCase();
-  const { lideres, cabos } = useMemo(() => {
-    if (!data) return { lideres: [], cabos: [] };
+  const { coordenacao, lideres, cabos } = useMemo(() => {
+    if (!data) return { coordenacao: [], lideres: [], cabos: [] };
     const f = (s) => !query || (s || "").toLowerCase().includes(query);
+    const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo) || f(l.bairros));
     return {
-      lideres: data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo) || f(l.bairros)),
+      coordenacao: pessoas.filter((person) => person.nivel === "coordenacao"),
+      lideres: pessoas.filter((person) => person.nivel !== "coordenacao"),
       cabos: data.cabos.filter((c) => f(c.nome) || f(c.municipio_nome) || f(c.bairro_nome) || f(c.lider_nome)),
     };
   }, [data, query]);
@@ -26,16 +28,29 @@ export default function EquipePage() {
     <main className="wrap">
       <div className="eyebrow">Visão geral</div>
       <h1>Equipe da campanha</h1>
-      <p className="subtitle">Todas as lideranças e cabos eleitorais cadastrados, em todos os municípios. Clique no município para gerenciar.</p>
+      <p className="subtitle">Uma coordenação geral para toda a campanha, com lideranças e cabos organizados por município.</p>
 
       <div className="stats">
-        <div className="stat"><div className="num">{data.lideres.length}</div><div className="lbl">Lideranças</div></div>
+        <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "coordenacao").length}</div><div className="lbl">Coordenação geral</div></div>
+        <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel !== "coordenacao").length}</div><div className="lbl">Lideranças</div></div>
         <div className="stat"><div className="num">{data.cabos.length}</div><div className="lbl">Cabos eleitorais</div></div>
       </div>
 
       <div className="toolbar">
         <input type="text" placeholder="Buscar por nome, município, bairro…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+
+      <section className="section">
+        <h2>Coordenação da campanha <span className="badge-count">{coordenacao.length}</span></h2>
+        {coordenacao.length === 0 ? <div className="empty">Nenhuma pessoa na coordenação geral.</div> : coordenacao.map((person) => (
+          <div className="row" key={person.id}>
+            <span className="nm" style={{ fontWeight: 700, flex: "1.5 1 8rem" }}>{person.nome}</span>
+            <span className="hint" style={{ flex: "1.5 1 8rem" }}>{person.cargo || "Coordenação geral"}</span>
+            <span className="global-scope-badge">Toda a campanha</span>
+            <span className="hint" style={{ flex: "1.5 1 8rem" }}>Presente em todas as cidades</span>
+          </div>
+        ))}
+      </section>
 
       <section className="section">
         <h2>Lideranças <span className="badge-count">{lideres.length}</span></h2>

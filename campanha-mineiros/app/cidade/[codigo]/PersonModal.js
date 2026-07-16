@@ -24,17 +24,18 @@ export default function PersonModal({ person, cidade, onClose, onSave, onDelete 
   }
 
   return (
-    <Modal title={person ? "Editar pessoa" : "Adicionar pessoa"} eyebrow="Equipe da cidade" onClose={onClose} wide>
+    <Modal title={person?.id ? "Editar pessoa" : "Adicionar pessoa"} eyebrow={form.nivel === "coordenacao" ? "Estrutura geral da campanha" : `Equipe de ${cidade.nome}`} onClose={onClose} wide>
       <form className="form-stack" onSubmit={submit}>
         <div className="segmented-control" role="group" aria-label="Papel na estrutura">
-          <button type="button" className={form.nivel === "coordenacao" ? "active" : ""} onClick={() => update("nivel", "coordenacao")}>Coordenação</button>
+          <button type="button" className={form.nivel === "coordenacao" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "coordenacao", responsavel_id: "", bairro_ids: [] }))}>Coordenação da campanha</button>
           <button type="button" className={form.nivel === "lideranca" ? "active" : ""} onClick={() => update("nivel", "lideranca")}>Liderança</button>
         </div>
+        {form.nivel === "coordenacao" ? <div className="global-scope-note"><span>◉</span><p><strong>Cadastro global</strong><small>Esta pessoa aparecerá na coordenação de todas as cidades. Edite uma vez e a mudança será aplicada em toda a campanha.</small></p></div> : null}
         <div className="form-grid two">
           <label><span>Nome completo *</span><input autoFocus value={form.nome} onChange={(e) => update("nome", e.target.value)} /></label>
           <label><span>Papel / atuação</span><input value={form.cargo} onChange={(e) => update("cargo", e.target.value)} placeholder="Ex.: liderança comunitária" /></label>
           <label><span>Telefone ou WhatsApp</span><input value={form.contato} onChange={(e) => update("contato", e.target.value)} placeholder="(64) 99999-9999" /></label>
-          <label><span>Temperatura política</span><select value={form.classificacao} onChange={(e) => update("classificacao", e.target.value)}><option value="">Sem leitura</option><option value="verde">Apoio consolidado</option><option value="amarelo">Em aproximação</option><option value="vermelho">Resistência</option></select></label>
+          {form.nivel === "lideranca" ? <label><span>Temperatura política</span><select value={form.classificacao} onChange={(e) => update("classificacao", e.target.value)}><option value="">Sem leitura</option><option value="verde">Apoio consolidado</option><option value="amarelo">Em aproximação</option><option value="vermelho">Resistência</option></select></label> : null}
           {form.nivel === "lideranca" ? <label><span>Responde à coordenação</span><select value={form.responsavel_id} onChange={(e) => update("responsavel_id", e.target.value)}><option value="">Direto da cidade</option>{coordinators.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></label> : null}
           <label><span>Endereço de referência</span><input value={form.endereco} onChange={(e) => update("endereco", e.target.value)} placeholder="Rua, número ou ponto de apoio" /></label>
         </div>

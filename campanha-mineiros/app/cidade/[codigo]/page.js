@@ -53,13 +53,18 @@ export default function CidadePage({ params }) {
     try { setError(""); await action(); await reload(); }
     catch (err) { setError(err.message); }
   }
-  function openPerson(person = null) { setPersonModal(person); setPersonModalOpen(true); }
+  function openPerson(person = null) {
+    setPersonModal(typeof person === "number" ? { nivel: "lideranca", responsavel_id: person } : person);
+    setPersonModalOpen(true);
+  }
   async function savePerson(form) {
-    await run(() => request("/api/lideres", personModal ? "PATCH" : "POST", personModal ? { id: personModal.id, ...form } : { municipio_codigo: code, ...form }));
+    const editing = Boolean(personModal?.id);
+    await run(() => request("/api/lideres", editing ? "PATCH" : "POST", editing ? { id: personModal.id, municipio_codigo: code, ...form } : { municipio_codigo: code, ...form }));
     setPersonModalOpen(false);
   }
   async function deletePerson(person) {
-    if (!confirm(`Excluir “${person.nome}” da estrutura?`)) return;
+    const message = person.nivel === "coordenacao" ? `Excluir “${person.nome}” da coordenação de toda a campanha? Esta alteração vale para todas as cidades.` : `Excluir “${person.nome}” da estrutura de ${cidade.nome}?`;
+    if (!confirm(message)) return;
     await run(() => request("/api/lideres", "DELETE", { id: person.id }));
     setPersonModalOpen(false);
   }
@@ -77,11 +82,11 @@ export default function CidadePage({ params }) {
     <main className="command-page city-command">
       <nav className="breadcrumb"><Link href="/">Goiás</Link><span>/</span><strong>{cidade.nome}</strong></nav>
       <header className="city-hero">
-        <div><span className="eyebrow">{cidade.sudoeste ? "Prioridade · Sudoeste Goiano" : "Operação municipal"}</span><h1>{cidade.nome}</h1><p>A cidade inteira em uma única central: comando, lideranças, territórios, cabos e rotas.</p></div>
+        <div><span className="eyebrow">{cidade.sudoeste ? "Prioridade · Sudoeste Goiano" : "Operação municipal"}</span><h1>{cidade.nome}</h1><p>Coordenação geral da campanha, com lideranças, cabos, territórios e rotas próprios da cidade.</p></div>
         <button className="primary-button prominent" onClick={() => openPerson()}>+ Adicionar pessoa</button>
       </header>
       <section className="city-scoreboard">
-        <article><span>Coordenação</span><strong>{coordinators}</strong><small>{coordinators ? "comando definido" : "precisa de responsável"}</small></article>
+        <article><span>Coordenação geral</span><strong>{coordinators}</strong><small>{coordinators ? "a mesma em toda a campanha" : "precisa de responsável"}</small></article>
         <article><span>Lideranças</span><strong>{leaders}</strong><small>na estrutura</small></article>
         <article><span>Cabos eleitorais</span><strong>{cabos}</strong><small>em campo</small></article>
         <article><span>Cobertura</span><strong>{activeTerritories}<em>/{bairros.length}</em></strong><small>territórios ativos</small></article>
