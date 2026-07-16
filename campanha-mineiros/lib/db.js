@@ -162,6 +162,7 @@ function init() {
       categoria       TEXT NOT NULL DEFAULT 'Outros',
       nome            TEXT NOT NULL,
       vinculo         TEXT NOT NULL DEFAULT 'manual',
+      modo_quantidade TEXT NOT NULL DEFAULT 'simulacao',
       quantidade      REAL NOT NULL DEFAULT 1,
       periodos        REAL NOT NULL DEFAULT 1,
       custo_unitario  REAL NOT NULL DEFAULT 0,
@@ -191,6 +192,8 @@ function init() {
   ensureColumn("cabo", "lng", "REAL");
   ensureColumn("rota", "bairro_id", "INTEGER");
   ensureColumn("tarefa_rota", "lider_id", "INTEGER");
+  ensureColumn("orcamento_item", "modo_quantidade", "TEXT NOT NULL DEFAULT 'automatico'");
+  db.prepare("UPDATE orcamento_item SET modo_quantidade = 'simulacao' WHERE vinculo = 'manual'").run();
 
   // O plano publico e apenas informativo. Preservamos tarefas antigas,
   // convertendo os estados de execucao em registros de retorno ao comite.
@@ -560,9 +563,10 @@ export function getOrcamento() {
   const config = db.prepare("SELECT * FROM orcamento_config WHERE id = 1").get();
   const contadores = getBudgetCounters();
   const items = db.prepare("SELECT * FROM orcamento_item ORDER BY ordem, id").all().map((item) => {
-    const quantidade_calculada = item.vinculo === "manual" ? Number(item.quantidade) : Number(contadores[item.vinculo] || 0);
+    const usa_cadastro = item.vinculo !== "manual" && item.modo_quantidade !== "simulacao";
+    const quantidade_calculada = usa_cadastro ? Number(contadores[item.vinculo] || 0) : Number(item.quantidade);
     const total = quantidade_calculada * Number(item.periodos) * Number(item.custo_unitario);
-    return { ...item, quantidade_calculada, total };
+    return { ...item, usa_cadastro, quantidade_calculada, total };
   });
   const categoriasMap = new Map();
   for (const item of items) categoriasMap.set(item.categoria, (categoriasMap.get(item.categoria) || 0) + item.total);
@@ -592,22 +596,28 @@ export function updateOrcamentoConfig({ nome_cenario, fundo_total, reserva_perce
   return getOrcamento();
 }
 
-export function createOrcamentoItem({ categoria = "Outros", nome, vinculo = "manual", quantidade = 1, periodos = 1, custo_unitario = 0, observacao = "" }) {
+export function createOrcamentoItem({ categoria = "Outros", nome, vinculo = "manual", modo_quantidade = "simulacao", quantidade = 1, periodos = 1, custo_unitario = 0, observacao = "" }) {
   if (!String(nome || "").trim()) throw new Error("Informe o nome do custo");
   const allowed = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
+  const selectedLink = allowed.has(vinculo) ? vinculo : "manual";
+  const selectedMode = selectedLink === "manual" ? "simulacao" : (modo_quantidade === "simulacao" ? "simulacao" : "automatico");
   const ordem = db.prepare("SELECT COALESCE(MAX(ordem), -1) + 1 AS ordem FROM orcamento_item").get().ordem;
-  const result = db.prepare(`INSERT INTO orcamento_item (categoria,nome,vinculo,quantidade,periodos,custo_unitario,observacao,ordem)
-    VALUES (?,?,?,?,?,?,?,?)`).run(String(categoria || "Outros").trim(), String(nome).trim(), allowed.has(vinculo) ? vinculo : "manual",
+  const result = db.prepare(`INSERT INTO orcamento_item (categoria,nome,vinculo,modo_quantidade,quantidade,periodos,custo_unitario,observacao,ordem)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(String(categoria || "Outros").trim(), String(nome).trim(), selectedLink, selectedMode,
       budgetNumber(quantidade, 1), budgetNumber(periodos, 1), budgetNumber(custo_unitario), String(observacao || "").trim(), ordem);
   return getOrcamento().items.find((item) => item.id === Number(result.lastInsertRowid));
 }
 
-export function updateOrcamentoItem({ id, categoria, nome, vinculo, quantidade, periodos, custo_unitario, observacao }) {
+export function updateOrcamentoItem({ id, categoria, nome, vinculo, modo_quantidade, quantidade, periodos, custo_unitario, observacao }) {
   const allowed = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
+  const current = db.prepare("SELECT vinculo, modo_quantidade FROM orcamento_item WHERE id = ?").get(id);
+  if (!current) throw new Error("Custo não encontrado");
+  const selectedLink = vinculo === undefined ? current.vinculo : (allowed.has(vinculo) ? vinculo : "manual");
+  const selectedMode = selectedLink === "manual" ? "simulacao" : (modo_quantidade === undefined ? current.modo_quantidade : (modo_quantidade === "simulacao" ? "simulacao" : "automatico"));
   db.prepare(`UPDATE orcamento_item SET categoria=COALESCE(?,categoria), nome=COALESCE(?,nome), vinculo=COALESCE(?,vinculo),
-    quantidade=COALESCE(?,quantidade), periodos=COALESCE(?,periodos), custo_unitario=COALESCE(?,custo_unitario),
-    observacao=COALESCE(?,observacao) WHERE id=?`).run(categoria?.trim() || null, nome?.trim() || null,
-      vinculo === undefined ? null : (allowed.has(vinculo) ? vinculo : "manual"),
+    modo_quantidade=COALESCE(?,modo_quantidade), quantidade=COALESCE(?,quantidade), periodos=COALESCE(?,periodos),
+    custo_unitario=COALESCE(?,custo_unitario), observacao=COALESCE(?,observacao) WHERE id=?`).run(categoria?.trim() || null, nome?.trim() || null,
+      selectedLink, selectedMode,
       quantidade === undefined ? null : budgetNumber(quantidade), periodos === undefined ? null : budgetNumber(periodos),
       custo_unitario === undefined ? null : budgetNumber(custo_unitario), observacao === undefined ? null : String(observacao).trim(), id);
   return getOrcamento().items.find((item) => item.id === Number(id));
