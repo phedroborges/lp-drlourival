@@ -234,9 +234,16 @@ function init() {
       db.prepare(`INSERT INTO lider
         (municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel)
         VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(MINEIROS_CODIGO, "Pedro Borges", "Coordenação municipal", "(64) 99999-0001", "verde", "Coordenador responsável pela operação de Mineiros", "coordenacao");
+        .run(MINEIROS_CODIGO, "Pedro Borges", "Coordenação geral da campanha", "(64) 99999-0001", "verde", "Coordenação responsável por toda a campanha", "coordenacao");
     }
   }
+
+  // A coordenação é global. Atualiza apenas o texto original do registro
+  // sem sobrescrever alterações que já tenham sido feitas pelo usuário.
+  db.prepare(`UPDATE lider SET cargo = 'Coordenação geral da campanha'
+    WHERE nivel = 'coordenacao' AND cargo = 'Coordenação municipal'`).run();
+  db.prepare(`UPDATE lider SET observacao = 'Coordenação responsável por toda a campanha'
+    WHERE nivel = 'coordenacao' AND observacao = 'Coordenador responsável pela operação de Mineiros'`).run();
 
   return db;
 }
@@ -261,8 +268,8 @@ function tierOf(total) { return total === 0 ? 0 : total === 1 ? 1 : total <= 3 ?
 export function getEstado() {
   const rows = db.prepare(`
     SELECT m.codigo, m.nome, m.sudoeste,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo) AS nLideres,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel = 'coordenacao') AS nCoordenadores,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao') AS nLideres,
+      (SELECT COUNT(*) FROM lider l WHERE l.nivel = 'coordenacao') AS nCoordenadores,
       (SELECT COUNT(*) FROM cabo c JOIN bairro b ON b.id = c.bairro_id WHERE b.municipio_codigo = m.codigo) AS nCabos,
       (SELECT COUNT(*) FROM bairro b WHERE b.municipio_codigo = m.codigo) AS nBairros,
       (SELECT COUNT(DISTINCT b.id) FROM bairro b
@@ -270,10 +277,10 @@ export function getEstado() {
           EXISTS (SELECT 1 FROM lider_bairro lb WHERE lb.bairro_id = b.id)
           OR EXISTS (SELECT 1 FROM cabo c WHERE c.bairro_id = b.id)
         )) AS nBairrosAtivos,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = 'verde') AS nVerde,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = 'amarelo') AS nAmarelo,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = 'vermelho') AS nVermelho,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.classificacao = '') AS nSem
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = 'verde') AS nVerde,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = 'amarelo') AS nAmarelo,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = 'vermelho') AS nVermelho,
+      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = '') AS nSem
     FROM municipio m ORDER BY m.nome COLLATE NOCASE
   `).all();
   return rows.map((r) => ({ ...r, total: r.nLideres + r.nCabos, tier: tierOf(r.nLideres + r.nCabos) }));
@@ -283,7 +290,9 @@ export function getEstado() {
 export function getMunicipio(codigo) {
   const m = db.prepare("SELECT * FROM municipio WHERE codigo = ?").get(codigo);
   if (!m) return null;
-  const lideres = db.prepare("SELECT * FROM lider WHERE municipio_codigo = ? ORDER BY CASE nivel WHEN 'coordenacao' THEN 0 ELSE 1 END, nome COLLATE NOCASE").all(codigo);
+  const lideres = db.prepare(`SELECT *, CASE WHEN nivel = 'coordenacao' THEN 1 ELSE 0 END AS escopo_global
+    FROM lider WHERE nivel = 'coordenacao' OR municipio_codigo = ?
+    ORDER BY CASE nivel WHEN 'coordenacao' THEN 0 ELSE 1 END, nome COLLATE NOCASE`).all(codigo);
   const bairros = db.prepare("SELECT * FROM bairro WHERE municipio_codigo = ? ORDER BY ordem, nome").all(codigo);
   const bairrosPorLider = new Map();
   const bid = new Map(bairros.map((b) => [b.id, { ...b, lideres: [], cabos: [] }]));
@@ -317,22 +326,28 @@ export function getMunicipio(codigo) {
 
 /* ------------------------- Lideranças ------------------------- */
 export function createLider({ municipio_codigo, nome, cargo = "", contato = "", classificacao = "", observacao = "", nivel = "lideranca", responsavel_id = null, endereco = "", lat = null, lng = null, bairro_ids = [] }) {
+  const globalCoordinator = nivel === "coordenacao";
   const r = db.prepare(
     "INSERT INTO lider (municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-  ).run(municipio_codigo, String(nome).trim(), cargo, contato, classificacao, observacao, nivel, responsavel_id || null, endereco, lat, lng);
-  for (const bairroId of bairro_ids || []) assignLider(Number(r.lastInsertRowid), Number(bairroId));
+  ).run(municipio_codigo, String(nome).trim(), cargo, contato, classificacao, observacao, nivel, globalCoordinator ? null : (responsavel_id || null), endereco, lat, lng);
+  if (!globalCoordinator) for (const bairroId of bairro_ids || []) assignLider(Number(r.lastInsertRowid), Number(bairroId));
   return db.prepare("SELECT * FROM lider WHERE id = ?").get(r.lastInsertRowid);
 }
-export function updateLider({ id, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng, bairro_ids }) {
-  const atual = db.prepare("SELECT responsavel_id, lat, lng FROM lider WHERE id = ?").get(id);
+export function updateLider({ id, municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng, bairro_ids }) {
+  const atual = db.prepare("SELECT municipio_codigo, nivel, responsavel_id, lat, lng FROM lider WHERE id = ?").get(id);
+  const selectedLevel = nivel || atual?.nivel || "lideranca";
+  const globalCoordinator = selectedLevel === "coordenacao";
+  const selectedMunicipality = globalCoordinator ? atual?.municipio_codigo : (municipio_codigo ?? atual?.municipio_codigo);
   db.prepare(
     `UPDATE lider SET nome=COALESCE(?,nome), cargo=COALESCE(?,cargo), contato=COALESCE(?,contato),
        classificacao=COALESCE(?,classificacao), observacao=COALESCE(?,observacao), nivel=COALESCE(?,nivel),
-       responsavel_id=?, endereco=COALESCE(?,endereco), lat=?, lng=? WHERE id=?`
+       municipio_codigo=COALESCE(?,municipio_codigo), responsavel_id=?, endereco=COALESCE(?,endereco), lat=?, lng=? WHERE id=?`
   ).run(nome ?? null, cargo ?? null, contato ?? null, classificacao ?? null, observacao ?? null, nivel ?? null,
-    responsavel_id === undefined ? (atual?.responsavel_id ?? null) : (responsavel_id || null), endereco ?? null,
+    selectedMunicipality ?? null, globalCoordinator ? null : (responsavel_id === undefined ? (atual?.responsavel_id ?? null) : (responsavel_id || null)), endereco ?? null,
     lat === undefined ? (atual?.lat ?? null) : lat, lng === undefined ? (atual?.lng ?? null) : lng, id);
-  if (Array.isArray(bairro_ids)) {
+  if (globalCoordinator) {
+    db.prepare("DELETE FROM lider_bairro WHERE lider_id = ?").run(id);
+  } else if (Array.isArray(bairro_ids)) {
     db.prepare("DELETE FROM lider_bairro WHERE lider_id = ?").run(id);
     for (const bairroId of bairro_ids) assignLider(id, Number(bairroId));
   }
@@ -466,7 +481,7 @@ export function createTarefa({ rota_id, bairro_id = null, lider_id, data, turno 
   if (pointCount < 2) throw new Error("A rota precisa ter partida e chegada");
   const targetBairro = Number(bairro_id || rota.bairro_id);
   if (!targetBairro) throw new Error("Escolha o bairro atendido pela rota");
-  const lider = db.prepare("SELECT id FROM lider WHERE id = ? AND municipio_codigo = ?").get(Number(lider_id), rota.municipio_codigo);
+  const lider = db.prepare("SELECT id FROM lider WHERE id = ? AND municipio_codigo = ? AND nivel <> 'coordenacao'").get(Number(lider_id), rota.municipio_codigo);
   if (!lider) throw new Error("Escolha a liderança responsável pela equipe");
   const uniqueCabos = [...new Set(cabo_ids.map(Number))];
   const caboNoBairro = db.prepare("SELECT 1 FROM cabo WHERE id = ? AND bairro_id = ?");
@@ -508,7 +523,8 @@ export function deleteTarefa(id) { db.prepare("DELETE FROM tarefa_rota WHERE id 
 /* ------------------------- Equipe / Export ------------------------- */
 export function getEquipe() {
   const lideres = db.prepare(`
-    SELECT l.*, m.nome AS municipio_nome,
+    SELECT l.*, CASE WHEN l.nivel = 'coordenacao' THEN 'Toda a campanha' ELSE m.nome END AS municipio_nome,
+      CASE WHEN l.nivel = 'coordenacao' THEN 1 ELSE 0 END AS escopo_global,
       (SELECT GROUP_CONCAT(b.nome, ', ') FROM lider_bairro lb JOIN bairro b ON b.id = lb.bairro_id WHERE lb.lider_id = l.id) AS bairros
     FROM lider l JOIN municipio m ON m.codigo = l.municipio_codigo
     ORDER BY m.nome COLLATE NOCASE, l.nome COLLATE NOCASE
@@ -531,7 +547,7 @@ export function getDashboard() {
   const nBairros = db.prepare("SELECT COUNT(*) n FROM bairro").get().n;
   const nEstrategias = db.prepare("SELECT COUNT(*) n FROM estrategia").get().n;
   const ranking = comEquipe.slice().sort((a, b) => (b.total - a.total) || (b.nLideres - a.nLideres));
-  const coresRows = db.prepare("SELECT classificacao AS cor, COUNT(*) n FROM lider GROUP BY classificacao").all();
+  const coresRows = db.prepare("SELECT classificacao AS cor, COUNT(*) n FROM lider WHERE nivel <> 'coordenacao' GROUP BY classificacao").all();
   const cores = { verde: 0, amarelo: 0, vermelho: 0, sem: 0 };
   for (const r of coresRows) cores[r.cor && cores[r.cor] !== undefined ? r.cor : "sem"] += r.n;
   return {
