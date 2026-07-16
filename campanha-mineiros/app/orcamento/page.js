@@ -21,12 +21,20 @@ const CATEGORY_COLORS = ["#3857d6", "#7963d8", "#1aa67a", "#e29a35", "#e9655b", 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 
+function savedAt(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(`${value.replace(" ", "T")}Z`));
+}
+
 function blankItem(template = {}) {
-  return { categoria: "Outros", nome: "", vinculo: "manual", quantidade: 1, periodos: 1, custo_unitario: 0, observacao: "", ...template };
+  const item = { categoria: "Outros", nome: "", vinculo: "manual", modo_quantidade: "simulacao", quantidade: 1, periodos: 1, custo_unitario: 0, observacao: "", ...template };
+  if (!template.modo_quantidade) item.modo_quantidade = item.vinculo === "manual" ? "simulacao" : "automatico";
+  return item;
 }
 
 async function request(method, body) {
-  const response = await fetch("/api/orcamento", { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+  const url = method === "GET" ? `/api/orcamento?at=${Date.now()}` : "/api/orcamento";
+  const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "Não foi possível salvar o orçamento");
   return result;
@@ -49,7 +57,8 @@ export default function OrcamentoPage() {
   }
   useEffect(() => { load(); }, []);
 
-  const quantity = itemForm ? (itemForm.vinculo === "manual" ? Number(itemForm.quantidade || 0) : Number(data?.contadores?.[itemForm.vinculo] || 0)) : 0;
+  const usesRegistry = Boolean(itemForm && itemForm.vinculo !== "manual" && itemForm.modo_quantidade !== "simulacao");
+  const quantity = itemForm ? (usesRegistry ? Number(data?.contadores?.[itemForm.vinculo] || 0) : Number(itemForm.quantidade || 0)) : 0;
   const itemPreview = quantity * Number(itemForm?.periodos || 0) * Number(itemForm?.custo_unitario || 0);
   const usePercent = data?.config?.fundo_total ? Math.min(100, ((data.resumo.planejado + data.resumo.reserva) / data.config.fundo_total) * 100) : 0;
   const maxCategory = useMemo(() => Math.max(1, ...(data?.categorias || []).map((item) => item.total)), [data]);
@@ -68,8 +77,9 @@ export default function OrcamentoPage() {
     event.preventDefault();
     setSaving(true); setError("");
     try {
+      const editing = Boolean(itemForm.id);
       await request(itemForm.id ? "PATCH" : "POST", itemForm);
-      setItemForm(null); await load(); setNotice("Custo incluído no planejamento.");
+      setItemForm(null); await load(); setNotice(editing ? "Custo atualizado e salvo no sistema." : "Custo incluído e salvo no sistema.");
     } catch (reason) { setError(reason.message); }
     finally { setSaving(false); }
   }
@@ -97,8 +107,9 @@ export default function OrcamentoPage() {
         <label><span>Nome do cenário</span><input value={config.nome_cenario} onChange={(event) => setConfig({ ...config, nome_cenario: event.target.value })} /></label>
         <label><span>Fundo previsto</span><input type="number" min="0" step="1000" value={config.fundo_total} onChange={(event) => setConfig({ ...config, fundo_total: event.target.value })} /></label>
         <label><span>Reserva de segurança</span><div className="budget-suffix"><input type="number" min="0" max="100" step="1" value={config.reserva_percentual} onChange={(event) => setConfig({ ...config, reserva_percentual: event.target.value })} /><i>%</i></div></label>
-        <button className="primary-button" disabled={saving}>{saving ? "Salvando…" : "Atualizar cenário"}</button>
+        <button className="primary-button" disabled={saving}>{saving ? "Salvando…" : "Salvar cenário"}</button>
       </form>
+      <p className="budget-save-state"><span>✓</span> Dados salvos no sistema{data.config.atualizado_em ? ` · última atualização em ${savedAt(data.config.atualizado_em)}` : ""}</p>
 
       <section className="budget-kpis">
         <article><span className="budget-kpi-icon blue">$</span><div><small>Fundo previsto</small><strong>{money.format(data.config.fundo_total)}</strong><p>{data.config.nome_cenario}</p></div></article>
@@ -122,8 +133,8 @@ export default function OrcamentoPage() {
         <section className="budget-panel budget-team-panel">
           <div className="budget-panel-head"><div><span className="eyebrow">Base automática</span><h2>Equipe cadastrada</h2></div><small>Atualização dinâmica</small></div>
           <div className="budget-team-counts"><div><strong>{data.contadores.cabos}</strong><span>Cabos</span></div><div><strong>{data.contadores.liderancas}</strong><span>Lideranças</span></div><div><strong>{data.contadores.coordenadores}</strong><span>Coordenação</span></div></div>
-          <p>Custos vinculados à equipe usam esses números automaticamente. Se o cadastro mudar, o orçamento muda junto.</p>
-          <button className="secondary-button" onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Calcular custo dos cabos</button>
+          <p>Você pode usar os números cadastrados ou criar uma simulação sem alterar a equipe real.</p>
+          <div className="budget-team-actions"><button className="secondary-button" onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Usar cabos cadastrados</button><button className="secondary-button simulation" onClick={() => setItemForm(blankItem({ ...TEMPLATES[0], modo_quantidade: "simulacao", quantidade: Math.max(1, data.contadores.cabos) }))}>Simular quantidade</button></div>
         </section>
       </div>
 
@@ -133,7 +144,7 @@ export default function OrcamentoPage() {
         {data.items.length ? <div className="budget-cost-list">{data.items.map((item) => <article key={item.id}>
           <span className="budget-item-symbol">{item.categoria.slice(0, 2).toUpperCase()}</span>
           <div className="budget-item-name"><span>{item.categoria}</span><strong>{item.nome}</strong>{item.observacao ? <small>{item.observacao}</small> : null}</div>
-          <div className="budget-item-formula"><span>{item.quantidade_calculada} × {money.format(item.custo_unitario)}{item.periodos !== 1 ? ` × ${item.periodos} períodos` : ""}</span><small>{item.vinculo === "manual" ? "Quantidade informada" : LINKS[item.vinculo]}</small></div>
+          <div className="budget-item-formula"><span>{item.quantidade_calculada} × {money.format(item.custo_unitario)}{item.periodos !== 1 ? ` × ${item.periodos} períodos` : ""}</span><small>{item.vinculo === "manual" ? "Quantidade informada" : item.modo_quantidade === "simulacao" ? `Simulação de ${LINKS[item.vinculo].toLowerCase()}` : LINKS[item.vinculo]}</small></div>
           <strong className="budget-item-total">{money.format(item.total)}</strong>
           <div className="budget-item-actions"><button onClick={() => setItemForm({ ...item })}>Editar</button><button className="danger-link" onClick={() => deleteItem(item)}>Excluir</button></div>
         </article>)}</div> : <div className="budget-empty wide"><span>＋</span><h3>Comece pelo maior custo</h3><p>Por exemplo: vincule “Remuneração dos cabos” aos cabos cadastrados e informe o valor por pessoa.</p><button className="primary-button" onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Adicionar custo dos cabos</button></div>}
@@ -145,8 +156,9 @@ export default function OrcamentoPage() {
         <form className="budget-item-form" onSubmit={saveItem}>
           <label><span>Nome do custo</span><input autoFocus required value={itemForm.nome} placeholder="Ex.: Remuneração dos cabos" onChange={(event) => setItemForm({ ...itemForm, nome: event.target.value })} /></label>
           <label><span>Categoria</span><input list="budget-categories" required value={itemForm.categoria} onChange={(event) => setItemForm({ ...itemForm, categoria: event.target.value })} /><datalist id="budget-categories">{CATEGORIES.map((category) => <option key={category} value={category} />)}</datalist></label>
-          <label className="full"><span>Como calcular a quantidade?</span><select value={itemForm.vinculo} onChange={(event) => setItemForm({ ...itemForm, vinculo: event.target.value })}>{Object.entries(LINKS).map(([value, label]) => <option key={value} value={value}>{label}{value !== "manual" ? ` (${data.contadores[value]})` : ""}</option>)}</select></label>
-          <label><span>Quantidade</span><input type="number" min="0" step="1" disabled={itemForm.vinculo !== "manual"} value={itemForm.vinculo === "manual" ? itemForm.quantidade : quantity} onChange={(event) => setItemForm({ ...itemForm, quantidade: event.target.value })} /></label>
+          <label className="full"><span>O que esta quantidade representa?</span><select value={itemForm.vinculo} onChange={(event) => { const vinculo = event.target.value; setItemForm({ ...itemForm, vinculo, modo_quantidade: vinculo === "manual" ? "simulacao" : "automatico" }); }}>{Object.entries(LINKS).map(([value, label]) => <option key={value} value={value}>{label}{value !== "manual" ? ` (${data.contadores[value]})` : ""}</option>)}</select></label>
+          {itemForm.vinculo !== "manual" ? <div className="budget-quantity-mode full" role="group" aria-label="Modo da quantidade"><button type="button" className={usesRegistry ? "active" : ""} onClick={() => setItemForm({ ...itemForm, modo_quantidade: "automatico" })}><strong>Usar cadastro atual</strong><small>{data.contadores[itemForm.vinculo]} pessoas agora · atualiza sozinho</small></button><button type="button" className={!usesRegistry ? "active simulation" : ""} onClick={() => setItemForm({ ...itemForm, modo_quantidade: "simulacao", quantidade: Number(itemForm.quantidade || data.contadores[itemForm.vinculo] || 1) })}><strong>Simular outra quantidade</strong><small>Teste um cenário sem cadastrar pessoas</small></button></div> : null}
+          <label><span>{usesRegistry ? "Quantidade cadastrada" : itemForm.vinculo === "manual" ? "Quantidade" : "Quantidade simulada"}</span><input type="number" min="0" step="1" disabled={usesRegistry} value={usesRegistry ? quantity : itemForm.quantidade} onChange={(event) => setItemForm({ ...itemForm, quantidade: event.target.value })} /><small className="budget-field-help">{usesRegistry ? "Puxada automaticamente do sistema." : itemForm.vinculo === "manual" ? "Informe quantas unidades entram no cálculo." : "Não altera o cadastro real de pessoas."}</small></label>
           <label><span>Meses ou parcelas</span><input type="number" min="0" step="1" value={itemForm.periodos} onChange={(event) => setItemForm({ ...itemForm, periodos: event.target.value })} /></label>
           <label className="full"><span>Valor por unidade</span><input type="number" min="0" step="0.01" value={itemForm.custo_unitario} onChange={(event) => setItemForm({ ...itemForm, custo_unitario: event.target.value })} /></label>
           <label className="full"><span>Observação</span><textarea rows="3" value={itemForm.observacao} placeholder="Detalhes, fornecedor ou premissas deste cálculo" onChange={(event) => setItemForm({ ...itemForm, observacao: event.target.value })} /></label>
