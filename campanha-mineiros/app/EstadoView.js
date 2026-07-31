@@ -1,9 +1,20 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Cell, Pie, PieChart } from "recharts";
 import EstadoMap from "./EstadoMap";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+
+const TEMPERATURE_COLORS = { apoio: "#21a56b", aproximacao: "#f4b740", resistencia: "#ee6a5c", semLeitura: "#e7eaee" };
+const temperatureChartConfig = {
+  valor: { label: "Pessoas" },
+  apoio: { label: "Apoio", color: TEMPERATURE_COLORS.apoio },
+  aproximacao: { label: "Aproximação", color: TEMPERATURE_COLORS.aproximacao },
+  resistencia: { label: "Resistência", color: TEMPERATURE_COLORS.resistencia },
+  semLeitura: { label: "Sem leitura", color: TEMPERATURE_COLORS.semLeitura },
+};
 
 function CityRow({ city, onPreview }) {
   return <Link className="cityrow" href={`/cidade/${city.codigo}`} onMouseEnter={() => onPreview(city)} onFocus={() => onPreview(city)}>
@@ -26,14 +37,31 @@ function CityPreview({ city }) {
 }
 
 function TemperatureChart({ city }) {
-  const total = Math.max(1, city?.nLideres || 0);
-  const green = ((city?.nVerde || 0) / total) * 100;
-  const yellow = ((city?.nAmarelo || 0) / total) * 100;
-  const red = ((city?.nVermelho || 0) / total) * 100;
-  const chart = `conic-gradient(#21a56b 0 ${green}%, #f4b740 ${green}% ${green + yellow}%, #ee6a5c ${green + yellow}% ${green + yellow + red}%, #e7eaee ${green + yellow + red}% 100%)`;
+  const chartData = [
+    { key: "apoio", label: "Apoio", value: city?.nVerde || 0, fill: TEMPERATURE_COLORS.apoio },
+    { key: "aproximacao", label: "Aproximação", value: city?.nAmarelo || 0, fill: TEMPERATURE_COLORS.aproximacao },
+    { key: "resistencia", label: "Resistência", value: city?.nVermelho || 0, fill: TEMPERATURE_COLORS.resistencia },
+    { key: "semLeitura", label: "Sem leitura", value: city?.nSem || 0, fill: TEMPERATURE_COLORS.semLeitura },
+  ];
   return <Card className="temperature-card">
-    <div className="card-heading"><div><span className="card-kicker">Leitura política</span><h3>Temperatura das lideranças</h3></div><span className="more-button">•••</span></div>
-    <div className="donut-layout"><div className="donut-chart" style={{ background: chart }}><div><strong>{city?.nLideres || 0}</strong><span>pessoas</span></div></div><div className="temperature-legend"><span><i className="green" />Apoio <strong>{city?.nVerde || 0}</strong></span><span><i className="yellow" />Aproximação <strong>{city?.nAmarelo || 0}</strong></span><span><i className="red" />Resistência <strong>{city?.nVermelho || 0}</strong></span><span><i className="neutral" />Sem leitura <strong>{city?.nSem || 0}</strong></span></div></div>
+    <div className="card-heading"><div><span className="card-kicker">Leitura política</span><h3>Temperatura das lideranças</h3></div></div>
+    <div className="donut-layout">
+      <div className="relative mx-auto aspect-square h-[105px] w-[105px]">
+        <ChartContainer config={temperatureChartConfig} className="mx-auto aspect-square h-full">
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <Pie data={chartData} dataKey="value" nameKey="label" innerRadius={34} outerRadius={52} strokeWidth={2}>
+              {chartData.map((entry) => <Cell key={entry.key} fill={entry.fill} />)}
+            </Pie>
+          </PieChart>
+        </ChartContainer>
+        <div className="pointer-events-none absolute inset-0 grid place-content-center text-center leading-tight">
+          <strong className="text-lg font-bold">{city?.nLideres || 0}</strong>
+          <span className="text-[0.6rem] text-muted-foreground">pessoas</span>
+        </div>
+      </div>
+      <div className="temperature-legend"><span><i className="green" />Apoio <strong>{city?.nVerde || 0}</strong></span><span><i className="yellow" />Aproximação <strong>{city?.nAmarelo || 0}</strong></span><span><i className="red" />Resistência <strong>{city?.nVermelho || 0}</strong></span><span><i className="neutral" />Sem leitura <strong>{city?.nSem || 0}</strong></span></div>
+    </div>
   </Card>;
 }
 
