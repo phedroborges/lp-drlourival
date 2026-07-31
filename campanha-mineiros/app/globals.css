@@ -431,6 +431,12 @@ h1,h2,h3,h4,.brand-placa,.stat .num,.kpi .num { font-style: normal; letter-spaci
 .chefe-branch { min-width: 0; padding: .6rem; border: 1px dashed #c9d1dd; border-radius: 12px; background: #f8f9ff; }
 .chefe-card { border-top: 3px solid var(--ui-primary); text-align: center; }
 .chefe-card h4 { margin: .3rem 0 .05rem; color: var(--ui-text); font-size: 12px; }
+.quick-tags { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: .5rem 0; }
+.quick-tag-select { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: .16rem .45rem; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--muted); cursor: pointer; }
+.quick-tag-select.verde { background: var(--verde-soft); border-color: var(--verde); color: #1f7a48; }
+.quick-tag-select.amarelo { background: var(--amarelo-soft); border-color: var(--amarelo); color: #9a7a00; }
+.quick-tag-select.vermelho { background: var(--vermelho-soft); border-color: var(--vermelho); color: #b5301c; }
+.quick-delete { border: 1px solid var(--vermelho); border-radius: 999px; background: transparent; color: var(--vermelho); font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; padding: .16rem .5rem; }
 
 .route-status-row,.map-instruction p { font-size: 10px; }
 .draw-steps strong,.maps-share-heading strong,.field-task-trigger strong { font-size: 10px; }

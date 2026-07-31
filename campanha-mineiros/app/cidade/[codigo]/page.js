@@ -69,6 +69,9 @@ export default function CidadePage({ params }) {
     await run(() => request("/api/lideres", "DELETE", { id: person.id }));
     setPersonModalOpen(false);
   }
+  async function quickUpdatePerson(person, patch) {
+    await run(() => request("/api/lideres", "PATCH", { id: person.id, ...patch }));
+  }
   async function saveCabo(form) {
     await run(() => request("/api/cabos", caboModal?.cabo ? "PATCH" : "POST", caboModal?.cabo ? { id: caboModal.cabo.id, ...form } : form));
     setCaboModal(null);
@@ -98,7 +101,7 @@ export default function CidadePage({ params }) {
       <section className="city-content">
         {tab === "visao" ? <><div className="section-toolbar"><div><span className="eyebrow">Organograma territorial</span><h2>Quem coordena quem — e onde</h2><p>A estrutura é montada pelos vínculos cadastrados, sem duplicar informações na tela.</p></div><button className="secondary-button" onClick={() => setTab("pessoas")}>Gerenciar pessoas</button></div><OrgChart cidade={cidade} onEdit={openPerson} onAdd={openPerson} /></> : null}
         {tab === "operacao" ? <OperationBoard cidade={cidade} onChanged={reload} onOpenRoutes={() => setTab("rotas")} /> : null}
-        {tab === "pessoas" ? <PeopleView cidade={cidade} onEdit={openPerson} onAdd={openPerson} /> : null}
+        {tab === "pessoas" ? <PeopleView cidade={cidade} onEdit={openPerson} onAdd={openPerson} onQuickUpdate={quickUpdatePerson} onDelete={deletePerson} /> : null}
         {tab === "territorios" ? <TerritoryBoard cidade={cidade} onAddBairro={(name) => run(() => request("/api/bairros", "POST", { municipio_codigo: code, nome: name }))} onDeleteBairro={(bairro) => confirm(`Excluir “${bairro.nome}” e seus cabos?`) && run(() => request("/api/bairros", "DELETE", { id: bairro.id }))} onCabo={(cabo, bairro) => setCaboModal({ cabo, bairro })} onAssign={(lider_id, bairro_id) => run(() => request("/api/assign", "POST", { lider_id, bairro_id }))} onUnassign={(lider_id, bairro_id) => run(() => request("/api/assign", "DELETE", { lider_id, bairro_id }))} /> : null}
         {tab === "rotas" ? <RoutePlanner cidade={cidade} onChanged={reload} /> : null}
       </section>
