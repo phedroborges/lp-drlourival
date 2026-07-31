@@ -61,7 +61,7 @@ export default function EquipePage() {
             <span className="nm" style={{ fontWeight: 700, flex: "1.5 1 8rem" }}>{c.nome}</span>
             {c.classificacao ? <span className={`tag ${c.classificacao}`}>{c.classificacao}</span> : null}
             <span className="hint" style={{ flex: "1.5 1 8rem" }}>{c.cargo || "—"}</span>
-            <Link href={`/cidade/${c.municipio_codigo}`} style={{ color: "var(--accent)", fontWeight: 600, fontSize: "0.82rem" }}>{c.municipio_nome}</Link>
+            <Link href={`/cidade/${c.municipio_codigo}`} style={{ color: "var(--brand-accent)", fontWeight: 600, fontSize: "0.82rem" }}>{c.municipio_nome}</Link>
           </div>
         ))}
       </section>
@@ -73,7 +73,7 @@ export default function EquipePage() {
             <span className="nm" style={{ fontWeight: 700, flex: "1.5 1 8rem" }}>{l.nome}</span>
             {l.classificacao ? <span className={`tag ${l.classificacao}`}>{l.classificacao}</span> : null}
             <span className="hint" style={{ flex: "1.5 1 8rem" }}>{l.cargo || "—"}</span>
-            <Link href={`/cidade/${l.municipio_codigo}`} style={{ color: "var(--accent)", fontWeight: 600, fontSize: "0.82rem" }}>{l.municipio_nome}</Link>
+            <Link href={`/cidade/${l.municipio_codigo}`} style={{ color: "var(--brand-accent)", fontWeight: 600, fontSize: "0.82rem" }}>{l.municipio_nome}</Link>
             <span className="hint" style={{ flex: "1.5 1 8rem" }}>{l.bairros ? `📍 ${l.bairros}` : "sem bairro"}</span>
           </div>
         ))}
@@ -86,7 +86,7 @@ export default function EquipePage() {
             <span className="nm" style={{ fontWeight: 700, flex: "1.5 1 8rem" }}>{c.nome}</span>
             <span className="hint" style={{ flex: "1.3 1 7rem" }}>{c.contato || "—"}</span>
             <span className="hint" style={{ flex: "1 1 7rem" }}>📍 {c.bairro_nome}</span>
-            <Link href={`/cidade/${c.municipio_codigo}`} style={{ color: "var(--accent)", fontWeight: 600, fontSize: "0.82rem" }}>{c.municipio_nome}</Link>
+            <Link href={`/cidade/${c.municipio_codigo}`} style={{ color: "var(--brand-accent)", fontWeight: 600, fontSize: "0.82rem" }}>{c.municipio_nome}</Link>
             <span className="hint" style={{ flex: "1 1 6rem" }}>{c.lider_nome ? `↳ ${c.lider_nome}` : "sem líder"}</span>
           </div>
         ))}
