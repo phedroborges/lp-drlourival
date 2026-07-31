@@ -10,17 +10,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EditableText, EditableSelect } from "@/components/ui/editable-field";
+import { EditableText } from "@/components/ui/editable-field";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
-import TemperatureToggle from "@/app/ui/TemperatureToggle";
-
-const NIVEL_OPTIONS = [
-  { value: "coordenacao", label: "Coordenação" },
-  { value: "chefe_gabinete", label: "Chefe de gabinete" },
-  { value: "lideranca", label: "Liderança" },
-  { value: "apoiador", label: "Apoiador" },
-];
+import TemperaturePicker from "@/app/ui/TemperaturePicker";
 
 export function cargoPadrao(nivel) {
   if (nivel === "coordenacao") return "Coordenação da campanha";
@@ -36,10 +29,6 @@ export function cargoPadrao(nivel) {
 export default function PersonCard({ person, chefes = [], onQuickUpdate, onEdit, onDelete, footer }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const superior = chefes.find((item) => item.id === person.responsavel_id);
-  const responsavelOptions = [
-    { value: "", label: "Direto da coordenação" },
-    ...chefes.map((item) => ({ value: String(item.id), label: item.nome })),
-  ];
 
   return (
     <article className="person-card">
@@ -76,31 +65,14 @@ export default function PersonCard({ person, chefes = [], onQuickUpdate, onEdit,
         </DropdownMenu>
       </div>
 
-      <div className="quick-tags">
-        <EditableSelect
-          value={person.nivel}
-          options={NIVEL_OPTIONS}
-          onSave={(value) =>
-            onQuickUpdate(
-              person,
-              value === "lideranca" ? { nivel: value } : { nivel: value, responsavel_id: null }
-            )
-          }
-        />
-        {person.nivel === "lideranca" ? (
-          <EditableSelect
-            value={person.responsavel_id ? String(person.responsavel_id) : ""}
-            options={responsavelOptions}
-            onSave={(value) => onQuickUpdate(person, { responsavel_id: value ? Number(value) : null })}
-          />
-        ) : null}
-        {person.nivel !== "coordenacao" ? (
-          <TemperatureToggle
+      {person.nivel !== "coordenacao" ? (
+        <div className="quick-tags">
+          <TemperaturePicker
             value={person.classificacao || ""}
             onSave={(value) => onQuickUpdate(person, { classificacao: value })}
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <dl>
         <dt>Contato</dt>

@@ -14,7 +14,7 @@ import { EditableText } from "@/components/ui/editable-field";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import TemperatureToggle from "@/app/ui/TemperatureToggle";
+import TemperaturePicker from "@/app/ui/TemperaturePicker";
 
 function CardMenu({ person, onEdit, onDelete }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -66,7 +66,7 @@ function LeaderCard({ leader, bairros, cabos, onEdit, onQuickUpdate, onDelete })
           onSave={(value) => onQuickUpdate(leader, { cargo: value })}
           className="block text-xs text-muted-foreground"
         />
-        <TemperatureToggle
+        <TemperaturePicker
           value={leader.classificacao || ""}
           onSave={(value) => onQuickUpdate(leader, { classificacao: value })}
         />
@@ -148,7 +148,7 @@ function ChefeBranch({ chefe, leaders, bairros, cabos, onEdit, onAdd, onQuickUpd
           onSave={(value) => onQuickUpdate(chefe, { cargo: value })}
           className="mx-auto block w-fit text-xs text-muted-foreground"
         />
-        <TemperatureToggle
+        <TemperaturePicker
           value={chefe.classificacao || ""}
           onSave={(value) => onQuickUpdate(chefe, { classificacao: value })}
         />
