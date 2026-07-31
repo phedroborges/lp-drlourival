@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const LINKS = [
   { href: "/", label: "Dashboard", icon: "▦" },
@@ -13,7 +15,7 @@ export default function Nav() {
   return (
     <aside className="sidebar" aria-label="Navegação principal">
       <Link href="/" className="side-brand" aria-label="Dados da campanha — início">
-        <span className="brand-symbol">L</span>
+        <Avatar className="brand-symbol"><AvatarFallback>L</AvatarFallback></Avatar>
         <span className="brand-copy"><strong>Dr. Lourival</strong><small>Dados da campanha</small></span>
       </Link>
 
@@ -24,12 +26,22 @@ export default function Nav() {
       })}
 
       <div className="side-sec">Ferramentas</div>
-      <a className="side-link" href="/api/export" title="Baixar backup completo em JSON"><span className="side-ico" aria-hidden="true">↓</span><span>Exportar dados</span></a>
-      <a className="side-link" href="https://tocomdrlourival.com" target="_blank" rel="noreferrer"><span className="side-ico" aria-hidden="true">↗</span><span>Site público</span></a>
+      <Tooltip>
+        <TooltipTrigger render={<a className="side-link" href="/api/export" />}>
+          <span className="side-ico" aria-hidden="true">↓</span><span>Exportar dados</span>
+        </TooltipTrigger>
+        <TooltipContent>Baixar backup completo em JSON</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger render={<a className="side-link" href="https://tocomdrlourival.com" target="_blank" rel="noreferrer" />}>
+          <span className="side-ico" aria-hidden="true">↗</span><span>Site público</span>
+        </TooltipTrigger>
+        <TooltipContent>Abrir o site público da campanha</TooltipContent>
+      </Tooltip>
 
       <div className="side-spacer" />
       <div className="side-profile">
-        <span className="profile-avatar">DL</span>
+        <Avatar className="profile-avatar" size="sm"><AvatarFallback>DL</AvatarFallback></Avatar>
         <span><strong>Campanha ativa</strong><small>Goiás · 2026</small></span>
         <i />
       </div>
