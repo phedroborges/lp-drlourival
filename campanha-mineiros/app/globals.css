@@ -121,17 +121,20 @@ h1 { font-weight: 800; font-style: italic; font-size: 1.7rem; color: var(--azul)
 .eyebrow { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--laranja); font-weight: 800; margin-bottom: 0.25rem; }
 
 /* ---------- Botões / inputs ---------- */
-button { font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.85rem; border-radius: 999px; border: 1px solid var(--brand-border); background: #fff; color: var(--tinta); padding: 0.5rem 1rem; }
-button:hover { border-color: var(--laranja); }
-button.primary { background: var(--laranja); border-color: var(--laranja); color: #fff; }
-button.primary:hover { background: var(--laranja-escuro); border-color: var(--laranja-escuro); }
-button.azul { background: var(--azul); border-color: var(--azul); color: #fff; }
-button.tiny { padding: 0.28rem 0.7rem; font-size: 0.75rem; }
-button.ghost { background: transparent; border-color: transparent; color: var(--brand-muted); }
-button.ghost:hover { color: var(--tinta); border-color: var(--brand-border); }
-button:disabled { opacity: 0.5; cursor: default; }
-input, select, textarea { font-family: inherit; font-size: 0.88rem; color: var(--tinta); background: #fff; border: 1px solid var(--brand-border); border-radius: 10px; padding: 0.55rem 0.8rem; min-width: 0; }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); outline-offset: 1px; }
+/* :not([data-slot]) exclui os componentes shadcn (Button, Input, Select...), que já trazem seu
+   próprio visual via Tailwind — essas regras legadas só valem pra controles nativos ainda não
+   migrados. */
+button:not([data-slot]) { font-family: inherit; font-weight: 700; cursor: pointer; font-size: 0.85rem; border-radius: 999px; border: 1px solid var(--brand-border); background: #fff; color: var(--tinta); padding: 0.5rem 1rem; }
+button:not([data-slot]):hover { border-color: var(--laranja); }
+button.primary:not([data-slot]) { background: var(--laranja); border-color: var(--laranja); color: #fff; }
+button.primary:not([data-slot]):hover { background: var(--laranja-escuro); border-color: var(--laranja-escuro); }
+button.azul:not([data-slot]) { background: var(--azul); border-color: var(--azul); color: #fff; }
+button.tiny:not([data-slot]) { padding: 0.28rem 0.7rem; font-size: 0.75rem; }
+button.ghost:not([data-slot]) { background: transparent; border-color: transparent; color: var(--brand-muted); }
+button.ghost:not([data-slot]):hover { color: var(--tinta); border-color: var(--brand-border); }
+button:not([data-slot]):disabled { opacity: 0.5; cursor: default; }
+input:not([data-slot]), select:not([data-slot]), textarea:not([data-slot]) { font-family: inherit; font-size: 0.88rem; color: var(--tinta); background: #fff; border: 1px solid var(--brand-border); border-radius: 10px; padding: 0.55rem 0.8rem; min-width: 0; }
+input:not([data-slot]):focus, select:not([data-slot]):focus, textarea:not([data-slot]):focus { outline: 2px solid var(--azul); outline-offset: 1px; }
 textarea { resize: vertical; line-height: 1.5; }
 
 /* ---------- Cards / grid ---------- */

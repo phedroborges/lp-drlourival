@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
 const STATUS = {
   planejada: ["Planejada", "planned"],
@@ -60,7 +61,6 @@ export default function OperationBoard({ cidade, onChanged, onOpenRoutes }) {
   }
 
   async function removeTask(task) {
-    if (!confirm(`Excluir o planejamento “${task.rota_nome}”?`)) return;
     await fetch("/api/tarefas", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: task.id }) });
     await onChanged();
   }
@@ -69,6 +69,7 @@ export default function OperationBoard({ cidade, onChanged, onOpenRoutes }) {
     const [label, tone] = STATUS[task.status_calculado] || STATUS.planejada;
     const progress = task.cabos.length ? Math.round((task.registrados / task.cabos.length) * 100) : 0;
     const isOpen = expandedId === task.id;
+    const [confirmOpen, setConfirmOpen] = useState(false);
     return (
       <article className="operation-card">
         <div className="operation-card-top"><span className={`operation-status ${tone}`}><i />{label}</span><span className="operation-date">{dateLabel(task.data)} · {task.turno}</span></div>
@@ -77,7 +78,13 @@ export default function OperationBoard({ cidade, onChanged, onOpenRoutes }) {
         <div className="operation-progress"><div><span style={{ width: `${progress}%` }} /></div><strong>{task.registrados}/{task.cabos.length}</strong><small>conferidos</small></div>
         <div className="operation-team">{task.cabos.map((cabo) => <span key={cabo.cabo_id} className={cabo.status}><i>{cabo.nome.slice(0, 2).toUpperCase()}</i>{cabo.nome}</span>)}</div>
         {task.observacao ? <p className="operation-note">{task.observacao}</p> : null}
-        <div className="operation-actions"><a href={`/campo/${task.token}`} target="_blank" rel="noreferrer">Ver plano ↗</a><button onClick={() => shareTask(task)}>Compartilhar</button><button className="operation-return-button" onClick={() => setExpandedId(isOpen ? null : task.id)}>{isOpen ? "Fechar conferência" : "Registrar retorno"}</button><button className="operation-delete" onClick={() => removeTask(task)} aria-label="Excluir planejamento">×</button></div>
+        <div className="operation-actions"><a href={`/campo/${task.token}`} target="_blank" rel="noreferrer">Ver plano ↗</a><button onClick={() => shareTask(task)}>Compartilhar</button><button className="operation-return-button" onClick={() => setExpandedId(isOpen ? null : task.id)}>{isOpen ? "Fechar conferência" : "Registrar retorno"}</button><button className="operation-delete" onClick={() => setConfirmOpen(true)} aria-label="Excluir planejamento">×</button></div>
+        <ConfirmDeleteDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          title={`Excluir o planejamento "${task.rota_nome}"?`}
+          onConfirm={() => removeTask(task)}
+        />
         {isOpen ? <div className="return-checklist">
           <div className="return-checklist-head"><div><strong>Conferência no comitê</strong><small>Marque apenas quando a equipe retornar. Não há rastreamento de localização ou tempo.</small></div><span>{task.retornos} retornos · {task.ausentes} ausências</span></div>
           {task.cabos.map((cabo) => {

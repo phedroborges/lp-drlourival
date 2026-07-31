@@ -8,6 +8,17 @@ import RoutePlanner from "./RoutePlanner";
 import PersonModal from "./PersonModal";
 import CaboModal from "./CaboModal";
 import OperationBoard from "./OperationBoard";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 const TABS = [
   { id: "visao", label: "Visão geral" },
@@ -41,7 +52,17 @@ export default function CidadePage({ params }) {
   useEffect(() => { reload(); }, [reload]);
 
   const bairros = useMemo(() => cidade?.grupos?.flatMap((group) => group.bairros) || [], [cidade]);
-  if (!cidade) return <main className="command-page"><div className="loading-card">Organizando a cidade…</div></main>;
+  if (!cidade) {
+    return (
+      <main className="command-page city-command">
+        <div className="city-scoreboard">
+          {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-[94px] rounded-2xl" />)}
+        </div>
+        <Skeleton className="mt-4 h-10 w-full max-w-md rounded-full" />
+        <Skeleton className="mt-4 h-64 w-full rounded-2xl" />
+      </main>
+    );
+  }
   if (cidade.error) return <main className="command-page"><div className="empty-state"><h2>Município não encontrado</h2><Link href="/">Voltar para Goiás</Link></div></main>;
 
   const coordinators = cidade.lideres.filter((person) => person.nivel === "coordenacao").length;
@@ -64,8 +85,6 @@ export default function CidadePage({ params }) {
     setPersonModalOpen(false);
   }
   async function deletePerson(person) {
-    const message = person.nivel === "coordenacao" ? `Excluir “${person.nome}” da coordenação de toda a campanha? Esta alteração vale para todas as cidades.` : `Excluir “${person.nome}” da estrutura de ${cidade.nome}?`;
-    if (!confirm(message)) return;
     await run(() => request("/api/lideres", "DELETE", { id: person.id }));
     setPersonModalOpen(false);
   }
@@ -77,17 +96,22 @@ export default function CidadePage({ params }) {
     setCaboModal(null);
   }
   async function deleteCabo(cabo) {
-    if (!confirm(`Excluir “${cabo.nome}”?`)) return;
     await run(() => request("/api/cabos", "DELETE", { id: cabo.id }));
     setCaboModal(null);
   }
 
   return (
     <main className="command-page city-command">
-      <nav className="breadcrumb"><Link href="/">Goiás</Link><span>/</span><strong>{cidade.nome}</strong></nav>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink render={<Link href="/" />}>Goiás</BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>{cidade.nome}</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <header className="city-hero">
         <div><span className="eyebrow">{cidade.sudoeste ? "Prioridade · Sudoeste Goiano" : "Operação municipal"}</span><h1>{cidade.nome}</h1><p>Coordenação geral da campanha, com lideranças, cabos, territórios e rotas próprios da cidade.</p></div>
-        <button className="primary-button prominent" onClick={() => openPerson()}>+ Adicionar pessoa</button>
+        <Button size="lg" onClick={() => openPerson()}>+ Adicionar pessoa</Button>
       </header>
       <section className="city-scoreboard">
         <article><span>Coordenação geral</span><strong>{coordinators}</strong><small>{coordinators ? "a mesma em toda a campanha" : "precisa de responsável"}</small></article>
@@ -96,13 +120,22 @@ export default function CidadePage({ params }) {
         <article><span>Cabos eleitorais</span><strong>{cabos}</strong><small>em campo</small></article>
         <article><span>Cobertura</span><strong>{activeTerritories}<em>/{bairros.length}</em></strong><small>territórios ativos</small></article>
       </section>
-      <nav className="city-tabs" aria-label="Seções da cidade">{TABS.map((item) => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}{item.id === "operacao" ? <span>{cidade.tarefas?.length || 0}</span> : item.id === "pessoas" ? <span>{cidade.lideres.length}</span> : item.id === "territorios" ? <span>{bairros.length}</span> : item.id === "rotas" ? <span>{cidade.rotas.length}</span> : null}</button>)}</nav>
+      <Tabs value={tab} onValueChange={setTab} className="city-tabs-shell">
+        <TabsList aria-label="Seções da cidade" className="city-tabs">
+          {TABS.map((item) => (
+            <TabsTrigger key={item.id} value={item.id}>
+              {item.label}
+              {item.id === "operacao" ? <span>{cidade.tarefas?.length || 0}</span> : item.id === "pessoas" ? <span>{cidade.lideres.length}</span> : item.id === "territorios" ? <span>{bairros.length}</span> : item.id === "rotas" ? <span>{cidade.rotas.length}</span> : null}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
       {error ? <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div> : null}
       <section className="city-content">
-        {tab === "visao" ? <><div className="section-toolbar"><div><span className="eyebrow">Organograma territorial</span><h2>Quem coordena quem — e onde</h2><p>A estrutura é montada pelos vínculos cadastrados, sem duplicar informações na tela.</p></div><button className="secondary-button" onClick={() => setTab("pessoas")}>Gerenciar pessoas</button></div><OrgChart cidade={cidade} onEdit={openPerson} onAdd={openPerson} /></> : null}
+        {tab === "visao" ? <><div className="section-toolbar"><div><span className="eyebrow">Organograma territorial</span><h2>Quem coordena quem — e onde</h2><p>A estrutura é montada pelos vínculos cadastrados, sem duplicar informações na tela.</p></div><Button variant="outline" onClick={() => setTab("pessoas")}>Gerenciar pessoas</Button></div><OrgChart cidade={cidade} onEdit={openPerson} onAdd={openPerson} onQuickUpdate={quickUpdatePerson} onDelete={deletePerson} /></> : null}
         {tab === "operacao" ? <OperationBoard cidade={cidade} onChanged={reload} onOpenRoutes={() => setTab("rotas")} /> : null}
         {tab === "pessoas" ? <PeopleView cidade={cidade} onEdit={openPerson} onAdd={openPerson} onQuickUpdate={quickUpdatePerson} onDelete={deletePerson} /> : null}
-        {tab === "territorios" ? <TerritoryBoard cidade={cidade} onAddBairro={(name) => run(() => request("/api/bairros", "POST", { municipio_codigo: code, nome: name }))} onDeleteBairro={(bairro) => confirm(`Excluir “${bairro.nome}” e seus cabos?`) && run(() => request("/api/bairros", "DELETE", { id: bairro.id }))} onCabo={(cabo, bairro) => setCaboModal({ cabo, bairro })} onAssign={(lider_id, bairro_id) => run(() => request("/api/assign", "POST", { lider_id, bairro_id }))} onUnassign={(lider_id, bairro_id) => run(() => request("/api/assign", "DELETE", { lider_id, bairro_id }))} /> : null}
+        {tab === "territorios" ? <TerritoryBoard cidade={cidade} onAddBairro={(name) => run(() => request("/api/bairros", "POST", { municipio_codigo: code, nome: name }))} onDeleteBairro={(bairro) => run(() => request("/api/bairros", "DELETE", { id: bairro.id }))} onCabo={(cabo, bairro) => setCaboModal({ cabo, bairro })} onAssign={(lider_id, bairro_id) => run(() => request("/api/assign", "POST", { lider_id, bairro_id }))} onUnassign={(lider_id, bairro_id) => run(() => request("/api/assign", "DELETE", { lider_id, bairro_id }))} /> : null}
         {tab === "rotas" ? <RoutePlanner cidade={cidade} onChanged={reload} /> : null}
       </section>
       {personModalOpen ? <PersonModal person={personModal} cidade={cidade} onClose={() => setPersonModalOpen(false)} onSave={savePerson} onDelete={deletePerson} /> : null}

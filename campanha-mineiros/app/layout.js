@@ -2,6 +2,8 @@ import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import AppFrame from "./AppFrame";
 import { Kanit } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 
 const kanit = Kanit({
   subsets: ["latin"],
@@ -19,7 +21,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" className={kanit.variable}>
       <body>
-        <AppFrame>{children}</AppFrame>
+        <TooltipProvider delayDuration={200}>
+          <AppFrame>{children}</AppFrame>
+          <Toaster position="bottom-right" />
+        </TooltipProvider>
       </body>
     </html>
   );

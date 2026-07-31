@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { googleMapsSegments } from "@/lib/googleMapsRoute.mjs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
 const MINEIROS_CENTER = [-17.5653879, -52.5536721];
 
@@ -52,6 +56,8 @@ export default function RoutePlanner({ cidade, onChanged }) {
   const [taskForm, setTaskForm] = useState({ lider_id: "", data: today, turno: "Manhã", observacao: "" });
   const [selectedCabos, setSelectedCabos] = useState([]);
   const [createdTask, setCreatedTask] = useState(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [confirmRemoveRouteOpen, setConfirmRemoveRouteOpen] = useState(false);
   const active = cidade.rotas.find((route) => route.id === activeId) || null;
   const finalized = active?.status === "finalizada";
   const activeBairro = bairros.find((bairro) => bairro.id === active?.bairro_id) || null;
@@ -184,7 +190,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
   }
 
   async function clearDrawing() {
-    if (!active?.pontos.length || !confirm("Remover todos os pontos desta rota?")) return;
+    if (!active?.pontos.length) return;
     for (const point of [...active.pontos].reverse()) await routeRequest("DELETE", { tipo: "ponto", id: point.id });
     await routeRequest("PATCH", { id: active.id, status: "planejamento", geometria: null, distancia_m: 0, duracao_s: 0 });
     setDrawMode("start");
@@ -194,7 +200,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
   }
 
   async function removeRoute() {
-    if (!active || !confirm(`Excluir a rota “${active.nome}”?`)) return;
+    if (!active) return;
     await routeRequest("DELETE", { id: active.id });
     setActiveId(null);
     setDrawMode("idle");
@@ -273,13 +279,45 @@ export default function RoutePlanner({ cidade, onChanged }) {
     <div className="route-planner">
       <div className="section-toolbar route-toolbar">
         <div><span className="eyebrow">Editor visual</span><h2>Desenho de rotas · {cidade.nome}</h2><p>Crie a rota como em um canvas: cada clique adiciona um ponto e uma linha reta liga o percurso.</p></div>
-        <form className="inline-create route-create" onSubmit={createRoute}><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome da nova rota" /><select value={bairroId} onChange={(event) => setBairroId(event.target.value)} aria-label="Bairro da rota"><option value="">Escolha o bairro</option>{bairros.map((bairro) => <option key={bairro.id} value={bairro.id}>{bairro.nome}</option>)}</select><button className="primary-button">+ Criar rota</button></form>
+        <form className="inline-create route-create" onSubmit={createRoute}>
+          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome da nova rota" />
+          <Select value={bairroId || "nenhum"} onValueChange={(value) => setBairroId(value === "nenhum" ? "" : value)}>
+            <SelectTrigger aria-label="Bairro da rota" className="w-full">
+              <SelectValue>{(value) => (value === "nenhum" ? "Escolha o bairro" : (bairros.find((bairro) => String(bairro.id) === value)?.nome ?? "Escolha o bairro"))}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="nenhum">Escolha o bairro</SelectItem>
+              {bairros.map((bairro) => <SelectItem key={bairro.id} value={String(bairro.id)}>{bairro.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button type="submit">+ Criar rota</Button>
+        </form>
       </div>
       <div className="route-layout">
         <aside className="route-panel">
-          <label><span>Rota em edição</span><select value={activeId || ""} onChange={(event) => selectRoute(event.target.value)}><option value="">Escolha uma rota</option>{cidade.rotas.map((route) => <option key={route.id} value={route.id}>{route.nome}</option>)}</select></label>
+          <label><span>Rota em edição</span>
+            <Select value={activeId ? String(activeId) : "nenhuma"} onValueChange={(value) => selectRoute(value === "nenhuma" ? "" : value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue>{(value) => (value === "nenhuma" ? "Escolha uma rota" : (cidade.rotas.find((route) => String(route.id) === value)?.nome ?? "Escolha uma rota"))}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhuma">Escolha uma rota</SelectItem>
+                {cidade.rotas.map((route) => <SelectItem key={route.id} value={String(route.id)}>{route.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </label>
           {active ? <>
-            <label className="route-area-select"><span>Território atendido</span><select value={active.bairro_id || ""} onChange={(event) => updateRouteArea(event.target.value)}><option value="">Escolha o bairro</option>{bairros.map((bairro) => <option key={bairro.id} value={bairro.id}>{bairro.nome}</option>)}</select></label>
+            <label className="route-area-select"><span>Território atendido</span>
+              <Select value={active.bairro_id ? String(active.bairro_id) : "nenhum"} onValueChange={(value) => updateRouteArea(value === "nenhum" ? "" : value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>{(value) => (value === "nenhum" ? "Escolha o bairro" : (bairros.find((bairro) => String(bairro.id) === value)?.nome ?? "Escolha o bairro"))}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhum">Escolha o bairro</SelectItem>
+                  {bairros.map((bairro) => <SelectItem key={bairro.id} value={String(bairro.id)}>{bairro.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </label>
             <div className="route-status-row"><span className={`route-status ${finalized ? "finished" : "draft"}`}><i />{finalized ? "Finalizada" : "Em desenho"}</span><span>{active.pontos.length} pontos</span></div>
             <div className="route-stats"><div><strong>{distance}</strong><span>linha total</span></div><div><strong>{Math.max(0, active.pontos.length - 1)}</strong><span>segmentos</span></div><div><strong>{finalized ? "Sim" : "Não"}</strong><span>chegada</span></div></div>
 
@@ -296,16 +334,64 @@ export default function RoutePlanner({ cidade, onChanged }) {
             {finalized ? <button className="field-task-trigger" onClick={openTaskForm}><span>✓</span><p><strong>Transformar em plano de campo</strong><small>Definir data, cabos e gerar link</small></p><i>→</i></button> : null}
             {taskOpen ? <form className="field-task-form" onSubmit={createFieldTask}>
               <div className="field-task-head"><div><span className="eyebrow">Novo plano de campo</span><h3>{active.nome}</h3><p>{activeBairro?.nome}</p></div><button type="button" onClick={() => setTaskOpen(false)}>×</button></div>
-              <label className="task-leader-select"><span>Liderança responsável</span><select value={taskForm.lider_id} onChange={(event) => setTaskForm({ ...taskForm, lider_id: event.target.value })} required><option value="">Escolha quem responde pela equipe</option>{eligibleLeaders.map((lider) => <option key={lider.id} value={lider.id}>{lider.nome}{activeBairro?.lideres.some((item) => item.id === lider.id) ? " · atua neste bairro" : ""}</option>)}</select><small>Essa pessoa aparece como referência no link enviado aos cabos.</small></label>
-              <div className="field-task-fields"><label><span>Data</span><input type="date" min={today} value={taskForm.data} onChange={(event) => setTaskForm({ ...taskForm, data: event.target.value })} required /></label><label><span>Turno</span><select value={taskForm.turno} onChange={(event) => setTaskForm({ ...taskForm, turno: event.target.value })}><option>Manhã</option><option>Tarde</option><option>Noite</option><option>Dia inteiro</option></select></label></div>
+              <label className="task-leader-select"><span>Liderança responsável</span>
+                <Select value={taskForm.lider_id ? String(taskForm.lider_id) : "nenhuma"} onValueChange={(value) => setTaskForm({ ...taskForm, lider_id: value === "nenhuma" ? "" : value })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(value) => {
+                        if (value === "nenhuma") return "Escolha quem responde pela equipe";
+                        const lider = eligibleLeaders.find((item) => String(item.id) === value);
+                        if (!lider) return "Escolha quem responde pela equipe";
+                        return `${lider.nome}${activeBairro?.lideres.some((item) => item.id === lider.id) ? " · atua neste bairro" : ""}`;
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhuma">Escolha quem responde pela equipe</SelectItem>
+                    {eligibleLeaders.map((lider) => (
+                      <SelectItem key={lider.id} value={String(lider.id)}>
+                        {lider.nome}{activeBairro?.lideres.some((item) => item.id === lider.id) ? " · atua neste bairro" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <small>Essa pessoa aparece como referência no link enviado aos cabos.</small>
+              </label>
+              <div className="field-task-fields">
+                <label><span>Data</span><Input type="date" min={today} value={taskForm.data} onChange={(event) => setTaskForm({ ...taskForm, data: event.target.value })} required /></label>
+                <label><span>Turno</span>
+                  <Select value={taskForm.turno} onValueChange={(value) => setTaskForm({ ...taskForm, turno: value })}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Manhã">Manhã</SelectItem>
+                      <SelectItem value="Tarde">Tarde</SelectItem>
+                      <SelectItem value="Noite">Noite</SelectItem>
+                      <SelectItem value="Dia inteiro">Dia inteiro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
               <div className="task-team-picker"><div><strong>Cabos escalados</strong><small>Equipe cadastrada em {activeBairro?.nome}</small></div>{eligibleCabos.length ? eligibleCabos.map((cabo) => <label key={cabo.id}><input type="checkbox" checked={selectedCabos.includes(cabo.id)} onChange={() => toggleCabo(cabo.id)} /><span>{cabo.nome.slice(0, 2).toUpperCase()}</span><p><strong>{cabo.nome}</strong><small>{cidade.lideres.find((lider) => lider.id === cabo.lider_id)?.nome ? `Equipe de ${cidade.lideres.find((lider) => lider.id === cabo.lider_id).nome}` : cabo.contato || "Sem liderança vinculada"}</small></p><i>✓</i></label>) : <p className="task-no-team">Este bairro ainda não possui cabos cadastrados.</p>}</div>
               <label className="task-instructions"><span>Orientações para a equipe</span><textarea value={taskForm.observacao} onChange={(event) => setTaskForm({ ...taskForm, observacao: event.target.value })} placeholder="Ex.: levar material e cobrir todas as ruas indicadas no mapa." rows="3" /></label>
               <button className="primary-button task-submit" disabled={!eligibleCabos.length || !eligibleLeaders.length}>Criar plano e gerar link</button>
             </form> : null}
             {createdTask ? <div className="task-created"><span>✓</span><p><strong>Planejamento criado</strong><small>{createdTask.lider_nome} · {createdTask.cabos.length} cabos · {createdTask.data}</small></p><a href={`/campo/${createdTask.token}`} target="_blank" rel="noreferrer">Abrir link ↗</a></div> : null}
 
-            {active.pontos.length ? <div className="route-secondary-actions"><button className="secondary-button" onClick={undoLastPoint}>Desfazer último ponto</button><button className="danger-link" onClick={clearDrawing}>Limpar desenho</button></div> : null}
-            <button className="danger-link full" onClick={removeRoute}>Excluir esta rota</button>
+            {active.pontos.length ? <div className="route-secondary-actions"><button className="secondary-button" onClick={undoLastPoint}>Desfazer último ponto</button><button className="danger-link" onClick={() => setConfirmClearOpen(true)}>Limpar desenho</button></div> : null}
+            <button className="danger-link full" onClick={() => setConfirmRemoveRouteOpen(true)}>Excluir esta rota</button>
+            <ConfirmDeleteDialog
+              open={confirmClearOpen}
+              onOpenChange={setConfirmClearOpen}
+              title="Remover todos os pontos desta rota?"
+              confirmLabel="Limpar"
+              onConfirm={clearDrawing}
+            />
+            <ConfirmDeleteDialog
+              open={confirmRemoveRouteOpen}
+              onOpenChange={setConfirmRemoveRouteOpen}
+              title={`Excluir a rota "${active.nome}"?`}
+              onConfirm={removeRoute}
+            />
           </> : <div className="route-empty"><span>⌖</span><p>Crie uma rota para começar o desenho sobre o mapa.</p></div>}
           {notice ? <p className="route-notice">{notice}</p> : null}
         </aside>
