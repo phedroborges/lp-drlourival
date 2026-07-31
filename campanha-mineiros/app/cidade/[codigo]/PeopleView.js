@@ -5,11 +5,13 @@ export default function PeopleView({ cidade, onEdit, onAdd, onQuickUpdate, onDel
   const coordinators = cidade.lideres.filter((person) => person.nivel === "coordenacao");
   const chefes = cidade.lideres.filter((person) => person.nivel === "chefe_gabinete");
   const leaders = cidade.lideres.filter((person) => person.nivel === "lideranca");
+  const supporters = cidade.lideres.filter((person) => person.nivel === "apoiador");
 
   const groups = [
     { title: "Coordenação da campanha", items: coordinators, global: true },
     { title: `Chefes de gabinete de ${cidade.nome}`, items: chefes, global: false },
     { title: `Lideranças de ${cidade.nome}`, items: leaders, global: false },
+    { title: `Apoiadores de ${cidade.nome}`, items: supporters, global: false },
   ];
 
   return (

@@ -19,11 +19,13 @@ const NIVEL_OPTIONS = [
   { value: "coordenacao", label: "Coordenação" },
   { value: "chefe_gabinete", label: "Chefe de gabinete" },
   { value: "lideranca", label: "Liderança" },
+  { value: "apoiador", label: "Apoiador" },
 ];
 
 export function cargoPadrao(nivel) {
   if (nivel === "coordenacao") return "Coordenação da campanha";
   if (nivel === "chefe_gabinete") return "Chefe de gabinete";
+  if (nivel === "apoiador") return "Apoiador";
   return "Liderança";
 }
 

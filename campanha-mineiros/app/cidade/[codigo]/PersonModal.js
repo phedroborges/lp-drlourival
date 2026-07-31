@@ -52,7 +52,9 @@ export default function PersonModal({ person, cidade, onClose, onSave, onDelete 
             <button type="button" className={form.nivel === "coordenacao" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "coordenacao", responsavel_id: "", bairro_ids: [] }))}>Coordenação da campanha</button>
             <button type="button" className={form.nivel === "chefe_gabinete" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "chefe_gabinete", responsavel_id: "" }))}>Chefe de gabinete</button>
             <button type="button" className={form.nivel === "lideranca" ? "active" : ""} onClick={() => update("nivel", "lideranca")}>Liderança</button>
+            <button type="button" className={form.nivel === "apoiador" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "apoiador", responsavel_id: "" }))}>Apoiador</button>
           </div>
+          {form.nivel === "apoiador" ? <div className="global-scope-note"><span>◉</span><p><strong>É da cidade e está com a gente</strong><small>Não é uma liderança formal (não reporta a ninguém nem entra no organograma), mas fica registrado como apoio.</small></p></div> : null}
           {form.nivel === "coordenacao" ? <div className="global-scope-note"><span>◉</span><p><strong>Cadastro global</strong><small>Esta pessoa aparecerá na coordenação de todas as cidades. Edite uma vez e a mudança será aplicada em toda a campanha.</small></p></div> : null}
           {form.nivel === "chefe_gabinete" ? <div className="global-scope-note"><span>◉</span><p><strong>Reporta à coordenação como um todo</strong><small>Chefes de gabinete respondem à coordenação em conjunto — não existe vínculo com um coordenador específico.</small></p></div> : null}
           <div className="form-grid two">

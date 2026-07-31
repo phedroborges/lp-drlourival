@@ -120,14 +120,15 @@ export default function EquipePage() {
   }
 
   const query = q.trim().toLowerCase();
-  const { coordenacao, chefes, lideres, cabos } = useMemo(() => {
-    if (!data) return { coordenacao: [], chefes: [], lideres: [], cabos: [] };
+  const { coordenacao, chefes, lideres, apoiadores, cabos } = useMemo(() => {
+    if (!data) return { coordenacao: [], chefes: [], lideres: [], apoiadores: [], cabos: [] };
     const f = (s) => !query || (s || "").toLowerCase().includes(query);
     const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo) || f(l.bairros));
     return {
       coordenacao: pessoas.filter((person) => person.nivel === "coordenacao"),
       chefes: pessoas.filter((person) => person.nivel === "chefe_gabinete"),
       lideres: pessoas.filter((person) => person.nivel === "lideranca"),
+      apoiadores: pessoas.filter((person) => person.nivel === "apoiador"),
       cabos: data.cabos.filter((c) => f(c.nome) || f(c.municipio_nome) || f(c.bairro_nome) || f(c.lider_nome)),
     };
   }, [data, query]);
@@ -148,6 +149,7 @@ export default function EquipePage() {
         <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "coordenacao").length}</div><div className="lbl">Coordenação geral</div></div>
         <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "chefe_gabinete").length}</div><div className="lbl">Chefes de gabinete</div></div>
         <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "lideranca").length}</div><div className="lbl">Lideranças</div></div>
+        <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "apoiador").length}</div><div className="lbl">Apoiadores</div></div>
         <div className="stat"><div className="num">{data.cabos.length}</div><div className="lbl">Cabos eleitorais</div></div>
       </div>
 
@@ -158,6 +160,7 @@ export default function EquipePage() {
       <PersonGroup title="Coordenação da campanha" items={coordenacao} chefesPorCidade={chefesPorCidade} onQuickUpdate={quickUpdatePerson} onEdit={editPerson} onDelete={deletePerson} />
       <PersonGroup title="Chefes de gabinete" items={chefes} chefesPorCidade={chefesPorCidade} onQuickUpdate={quickUpdatePerson} onEdit={editPerson} onDelete={deletePerson} />
       <PersonGroup title="Lideranças" items={lideres} chefesPorCidade={chefesPorCidade} onQuickUpdate={quickUpdatePerson} onEdit={editPerson} onDelete={deletePerson} />
+      <PersonGroup title="Apoiadores" items={apoiadores} chefesPorCidade={chefesPorCidade} onQuickUpdate={quickUpdatePerson} onEdit={editPerson} onDelete={deletePerson} />
 
       <section className="section">
         <h2>Cabos eleitorais <span className="badge-count">{cabos.length}</span></h2>

@@ -68,6 +68,7 @@ export default function CidadePage({ params }) {
   const coordinators = cidade.lideres.filter((person) => person.nivel === "coordenacao").length;
   const chefes = cidade.lideres.filter((person) => person.nivel === "chefe_gabinete").length;
   const leaders = cidade.lideres.filter((person) => person.nivel === "lideranca").length;
+  const supporters = cidade.lideres.filter((person) => person.nivel === "apoiador").length;
   const cabos = bairros.flatMap((bairro) => bairro.cabos).length;
   const activeTerritories = bairros.filter((bairro) => bairro.lideres.length || bairro.cabos.length).length;
 
@@ -117,6 +118,7 @@ export default function CidadePage({ params }) {
         <article><span>Coordenação geral</span><strong>{coordinators}</strong><small>{coordinators ? "a mesma em toda a campanha" : "precisa de responsável"}</small></article>
         <article><span>Chefes de gabinete</span><strong>{chefes}</strong><small>na cidade</small></article>
         <article><span>Lideranças</span><strong>{leaders}</strong><small>na estrutura</small></article>
+        <article><span>Apoiadores</span><strong>{supporters}</strong><small>de apoio</small></article>
         <article><span>Cabos eleitorais</span><strong>{cabos}</strong><small>em campo</small></article>
         <article><span>Cobertura</span><strong>{activeTerritories}<em>/{bairros.length}</em></strong><small>territórios ativos</small></article>
       </section>
