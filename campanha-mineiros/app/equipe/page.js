@@ -11,13 +11,14 @@ export default function EquipePage() {
   }, []);
 
   const query = q.trim().toLowerCase();
-  const { coordenacao, lideres, cabos } = useMemo(() => {
-    if (!data) return { coordenacao: [], lideres: [], cabos: [] };
+  const { coordenacao, chefes, lideres, cabos } = useMemo(() => {
+    if (!data) return { coordenacao: [], chefes: [], lideres: [], cabos: [] };
     const f = (s) => !query || (s || "").toLowerCase().includes(query);
     const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo) || f(l.bairros));
     return {
       coordenacao: pessoas.filter((person) => person.nivel === "coordenacao"),
-      lideres: pessoas.filter((person) => person.nivel !== "coordenacao"),
+      chefes: pessoas.filter((person) => person.nivel === "chefe_gabinete"),
+      lideres: pessoas.filter((person) => person.nivel === "lideranca"),
       cabos: data.cabos.filter((c) => f(c.nome) || f(c.municipio_nome) || f(c.bairro_nome) || f(c.lider_nome)),
     };
   }, [data, query]);
@@ -32,7 +33,8 @@ export default function EquipePage() {
 
       <div className="stats">
         <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "coordenacao").length}</div><div className="lbl">Coordenação geral</div></div>
-        <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel !== "coordenacao").length}</div><div className="lbl">Lideranças</div></div>
+        <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "chefe_gabinete").length}</div><div className="lbl">Chefes de gabinete</div></div>
+        <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "lideranca").length}</div><div className="lbl">Lideranças</div></div>
         <div className="stat"><div className="num">{data.cabos.length}</div><div className="lbl">Cabos eleitorais</div></div>
       </div>
 
@@ -48,6 +50,18 @@ export default function EquipePage() {
             <span className="hint" style={{ flex: "1.5 1 8rem" }}>{person.cargo || "Coordenação geral"}</span>
             <span className="global-scope-badge">Toda a campanha</span>
             <span className="hint" style={{ flex: "1.5 1 8rem" }}>Presente em todas as cidades</span>
+          </div>
+        ))}
+      </section>
+
+      <section className="section">
+        <h2>Chefes de gabinete <span className="badge-count">{chefes.length}</span></h2>
+        {chefes.length === 0 ? <div className="empty">Nenhum chefe de gabinete cadastrado.</div> : chefes.map((c) => (
+          <div className="row" key={c.id}>
+            <span className="nm" style={{ fontWeight: 700, flex: "1.5 1 8rem" }}>{c.nome}</span>
+            {c.classificacao ? <span className={`tag ${c.classificacao}`}>{c.classificacao}</span> : null}
+            <span className="hint" style={{ flex: "1.5 1 8rem" }}>{c.cargo || "—"}</span>
+            <Link href={`/cidade/${c.municipio_codigo}`} style={{ color: "var(--accent)", fontWeight: 600, fontSize: "0.82rem" }}>{c.municipio_nome}</Link>
           </div>
         ))}
       </section>

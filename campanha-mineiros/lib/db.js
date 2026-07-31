@@ -292,7 +292,7 @@ export function getMunicipio(codigo) {
   if (!m) return null;
   const lideres = db.prepare(`SELECT *, CASE WHEN nivel = 'coordenacao' THEN 1 ELSE 0 END AS escopo_global
     FROM lider WHERE nivel = 'coordenacao' OR municipio_codigo = ?
-    ORDER BY CASE nivel WHEN 'coordenacao' THEN 0 ELSE 1 END, nome COLLATE NOCASE`).all(codigo);
+    ORDER BY CASE nivel WHEN 'coordenacao' THEN 0 WHEN 'chefe_gabinete' THEN 1 ELSE 2 END, nome COLLATE NOCASE`).all(codigo);
   const bairros = db.prepare("SELECT * FROM bairro WHERE municipio_codigo = ? ORDER BY ordem, nome").all(codigo);
   const bairrosPorLider = new Map();
   const bid = new Map(bairros.map((b) => [b.id, { ...b, lideres: [], cabos: [] }]));

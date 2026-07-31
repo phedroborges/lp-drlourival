@@ -45,7 +45,8 @@ export default function CidadePage({ params }) {
   if (cidade.error) return <main className="command-page"><div className="empty-state"><h2>Município não encontrado</h2><Link href="/">Voltar para Goiás</Link></div></main>;
 
   const coordinators = cidade.lideres.filter((person) => person.nivel === "coordenacao").length;
-  const leaders = cidade.lideres.length - coordinators;
+  const chefes = cidade.lideres.filter((person) => person.nivel === "chefe_gabinete").length;
+  const leaders = cidade.lideres.filter((person) => person.nivel === "lideranca").length;
   const cabos = bairros.flatMap((bairro) => bairro.cabos).length;
   const activeTerritories = bairros.filter((bairro) => bairro.lideres.length || bairro.cabos.length).length;
 
@@ -87,6 +88,7 @@ export default function CidadePage({ params }) {
       </header>
       <section className="city-scoreboard">
         <article><span>Coordenação geral</span><strong>{coordinators}</strong><small>{coordinators ? "a mesma em toda a campanha" : "precisa de responsável"}</small></article>
+        <article><span>Chefes de gabinete</span><strong>{chefes}</strong><small>na cidade</small></article>
         <article><span>Lideranças</span><strong>{leaders}</strong><small>na estrutura</small></article>
         <article><span>Cabos eleitorais</span><strong>{cabos}</strong><small>em campo</small></article>
         <article><span>Cobertura</span><strong>{activeTerritories}<em>/{bairros.length}</em></strong><small>territórios ativos</small></article>

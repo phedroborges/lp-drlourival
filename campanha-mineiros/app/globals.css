@@ -427,6 +427,10 @@ h1,h2,h3,h4,.brand-placa,.stat .num,.kpi .num { font-style: normal; letter-spaci
 .org-more > summary::-webkit-details-marker { display: none; }
 .org-more[open] > summary { margin-bottom: 9px; background: var(--ui-primary-soft); }
 .org-more-list { padding-left: 0; }
+.chefe-grid { grid-column: 1/-1; display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: .8rem; margin-top: .6rem; }
+.chefe-branch { min-width: 0; padding: .6rem; border: 1px dashed #c9d1dd; border-radius: 12px; background: #f8f9ff; }
+.chefe-card { border-top: 3px solid var(--ui-primary); text-align: center; }
+.chefe-card h4 { margin: .3rem 0 .05rem; color: var(--ui-text); font-size: 12px; }
 
 .route-status-row,.map-instruction p { font-size: 10px; }
 .draw-steps strong,.maps-share-heading strong,.field-task-trigger strong { font-size: 10px; }

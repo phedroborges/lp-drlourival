@@ -33,26 +33,53 @@ function LeaderStack({ leaders, bairros, cabos, onEdit }) {
   );
 }
 
+function ChefeBranch({ chefe, leaders, bairros, cabos, onEdit, onAdd }) {
+  const team = leaders.filter((leader) => leader.responsavel_id === chefe.id);
+  const territorios = team.reduce((sum, leader) => sum + (leader.bairro_ids?.length || 0), 0);
+  const totalCabos = team.reduce((sum, leader) => sum + cabos.filter((cabo) => cabo.lider_id === leader.id).length, 0);
+  return (
+    <section className="chefe-branch">
+      <article className="coord-card chefe-card">
+        <button className="card-edit" onClick={() => onEdit(chefe)}>Editar</button>
+        <span className="role-label">Chefe de gabinete</span>
+        <div className="person-avatar">{chefe.nome.slice(0, 2).toUpperCase()}</div>
+        <h4>{chefe.nome}</h4>
+        <p>{chefe.cargo || "Chefia de gabinete"}</p>
+        <TemperatureBadge value={chefe.classificacao} />
+        <div className="coord-summary"><span>{team.length} lideranças</span><span>{territorios} territórios</span><span>{totalCabos} cabos</span></div>
+      </article>
+      <div className="branch-line" />
+      {team.length ? <LeaderStack leaders={team} bairros={bairros} cabos={cabos} onEdit={onEdit} /> : <button className="empty-branch" onClick={() => onAdd({ nivel: "lideranca", responsavel_id: chefe.id })}>+ Adicionar liderança neste gabinete</button>}
+    </section>
+  );
+}
+
 export default function OrgChart({ cidade, onEdit, onAdd }) {
   const bairros = cidade.grupos.flatMap((grupo) => grupo.bairros);
   const cabos = bairros.flatMap((bairro) => bairro.cabos);
   const coordinators = cidade.lideres.filter((item) => item.nivel === "coordenacao");
-  const leaders = cidade.lideres.filter((item) => item.nivel !== "coordenacao");
-  const direct = leaders.filter((item) => !item.responsavel_id || !coordinators.some((coord) => coord.id === item.responsavel_id));
+  const chefes = cidade.lideres.filter((item) => item.nivel === "chefe_gabinete");
+  const leaders = cidade.lideres.filter((item) => item.nivel === "lideranca");
+  const superiorIds = new Set([...coordinators, ...chefes].map((item) => item.id));
+  const direct = leaders.filter((item) => !item.responsavel_id || !superiorIds.has(item.responsavel_id));
 
   if (!cidade.lideres.length) return <div className="empty-state"><span>◎</span><h3>A estrutura começa pela coordenação</h3><p>Adicione a primeira pessoa e escolha o papel dela. O organograma será montado automaticamente.</p><button className="primary-button" onClick={() => onAdd()}>Adicionar primeira pessoa</button></div>;
 
   return (
     <div className="org-chart">
-      <div className="org-root"><span>Coordenação geral · estrutura local</span><strong>{cidade.nome}</strong><small>{coordinators.length} na coordenação da campanha · {leaders.length} lideranças locais · {cabos.length} cabos</small></div>
+      <div className="org-root"><span>Coordenação geral · estrutura local</span><strong>{cidade.nome}</strong><small>{coordinators.length} na coordenação da campanha · {chefes.length} chefes de gabinete · {leaders.length} lideranças locais · {cabos.length} cabos</small></div>
       <div className="org-trunk" />
       <div className="coord-grid">
         {coordinators.map((coordinator) => {
-          const team = leaders.filter((leader) => leader.responsavel_id === coordinator.id);
+          const chefeTeam = chefes.filter((chefe) => chefe.responsavel_id === coordinator.id);
+          const directLeaders = leaders.filter((leader) => leader.responsavel_id === coordinator.id);
+          const totalLideresNaCoordenacao = chefeTeam.reduce((sum, chefe) => sum + leaders.filter((leader) => leader.responsavel_id === chefe.id).length, 0) + directLeaders.length;
           return <section className="coord-branch" key={coordinator.id}>
-            <article className="coord-card"><button className="card-edit" onClick={() => onEdit(coordinator)}>Editar</button><span className="role-label">Coordenação de toda a campanha</span><div className="person-avatar light">{coordinator.nome.slice(0, 2).toUpperCase()}</div><h3>{coordinator.nome}</h3><p>{coordinator.cargo || "Coordenação geral da campanha"}</p><span className="coord-global-note">Mesma coordenação em todas as cidades</span><div className="coord-summary"><span>{team.length} líderes em {cidade.nome}</span><span>{team.reduce((sum, leader) => sum + (leader.bairro_ids?.length || 0), 0)} territórios</span></div></article>
+            <article className="coord-card"><button className="card-edit" onClick={() => onEdit(coordinator)}>Editar</button><span className="role-label">Coordenação de toda a campanha</span><div className="person-avatar light">{coordinator.nome.slice(0, 2).toUpperCase()}</div><h3>{coordinator.nome}</h3><p>{coordinator.cargo || "Coordenação geral da campanha"}</p><span className="coord-global-note">Mesma coordenação em todas as cidades</span><div className="coord-summary"><span>{chefeTeam.length} chefes de gabinete</span><span>{totalLideresNaCoordenacao} líderes em {cidade.nome}</span></div></article>
             <div className="branch-line" />
-            {team.length ? <LeaderStack leaders={team} bairros={bairros} cabos={cabos} onEdit={onEdit} /> : <button className="empty-branch" onClick={() => onAdd(coordinator.id)}>+ Adicionar liderança nesta coordenação</button>}
+            {chefeTeam.length ? <div className="chefe-grid">{chefeTeam.map((chefe) => <ChefeBranch key={chefe.id} chefe={chefe} leaders={leaders} bairros={bairros} cabos={cabos} onEdit={onEdit} onAdd={onAdd} />)}</div> : null}
+            {directLeaders.length ? <LeaderStack leaders={directLeaders} bairros={bairros} cabos={cabos} onEdit={onEdit} /> : null}
+            {!chefeTeam.length && !directLeaders.length ? <button className="empty-branch" onClick={() => onAdd({ nivel: "chefe_gabinete", responsavel_id: coordinator.id })}>+ Adicionar chefe de gabinete ou liderança</button> : null}
           </section>;
         })}
         {direct.length ? <section className="coord-branch direct-branch"><article className="coord-card neutral-card"><span className="role-label">Ligação direta</span><h3>Equipe de {cidade.nome}</h3><p>Lideranças ainda sem responsável definido na coordenação geral</p><div className="coord-summary"><span>{direct.length} líderes</span></div></article><div className="branch-line" /><LeaderStack leaders={direct} bairros={bairros} cabos={cabos} onEdit={onEdit} /></section> : null}
