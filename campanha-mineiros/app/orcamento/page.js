@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import Modal from "@/app/ui/Modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { EditableText } from "@/components/ui/editable-field";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 const CATEGORIES = ["Cabos eleitorais", "Coordenação", "Equipe", "Impressos", "Marketing", "Mídia", "Eventos", "Transporte e logística", "Jurídico e contábil", "Infraestrutura", "Outros"];
 const LINKS = {
@@ -17,6 +24,7 @@ const TEMPLATES = [
   { categoria: "Coordenação", nome: "Equipe de coordenação", vinculo: "coordenadores" },
 ];
 const CATEGORY_COLORS = ["#3857d6", "#7963d8", "#1aa67a", "#e29a35", "#e9655b", "#2d9db2", "#a865c1", "#6c7b8b"];
+const chartConfig = { total: { label: "Investimento" } };
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -44,8 +52,7 @@ export default function OrcamentoPage() {
   const [data, setData] = useState(null);
   const [config, setConfig] = useState({ nome_cenario: "Cenário base", fundo_total: 0, reserva_percentual: 5 });
   const [itemForm, setItemForm] = useState(null);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -53,7 +60,7 @@ export default function OrcamentoPage() {
       const result = await request("GET");
       setData(result);
       setConfig(result.config);
-    } catch (reason) { setError(reason.message); }
+    } catch (reason) { toast.error(reason.message); }
   }
   useEffect(() => { load(); }, []);
 
@@ -65,29 +72,35 @@ export default function OrcamentoPage() {
 
   async function saveConfig(event) {
     event.preventDefault();
-    setSaving(true); setError(""); setNotice("");
+    setSaving(true);
     try {
       const result = await request("PUT", config);
-      setData(result); setConfig(result.config); setNotice("Cenário financeiro atualizado.");
-    } catch (reason) { setError(reason.message); }
+      setData(result); setConfig(result.config); toast.success("Cenário financeiro atualizado.");
+    } catch (reason) { toast.error(reason.message); }
     finally { setSaving(false); }
   }
 
   async function saveItem(event) {
     event.preventDefault();
-    setSaving(true); setError("");
+    setSaving(true);
     try {
       const editing = Boolean(itemForm.id);
       await request(itemForm.id ? "PATCH" : "POST", itemForm);
-      setItemForm(null); await load(); setNotice(editing ? "Custo atualizado e salvo no sistema." : "Custo incluído e salvo no sistema.");
-    } catch (reason) { setError(reason.message); }
+      setItemForm(null); await load(); toast.success(editing ? "Custo atualizado e salvo no sistema." : "Custo incluído e salvo no sistema.");
+    } catch (reason) { toast.error(reason.message); }
     finally { setSaving(false); }
   }
 
+  async function updateItem(item, patch) {
+    try {
+      await request("PATCH", { id: item.id, ...patch });
+      await load();
+    } catch (reason) { toast.error(reason.message); }
+  }
+
   async function deleteItem(item) {
-    if (!confirm(`Excluir “${item.nome}” do orçamento?`)) return;
-    try { await request("DELETE", { id: item.id }); await load(); }
-    catch (reason) { setError(reason.message); }
+    try { await request("DELETE", { id: item.id }); await load(); toast.success(`"${item.nome}" removido do orçamento.`); }
+    catch (reason) { toast.error(reason.message); }
   }
 
   if (!data) return <main className="command-page budget-page"><div className="loading-card">Preparando o orçamento…</div></main>;
@@ -96,18 +109,15 @@ export default function OrcamentoPage() {
     <main className="command-page budget-page">
       <header className="dashboard-heading budget-heading">
         <div><span className="eyebrow">Planejamento financeiro</span><h1>Orçamento da campanha</h1><p>Descubra quanto a operação custa antes de comprometer o fundo disponível.</p></div>
-        <button className="primary-button" onClick={() => setItemForm(blankItem())}>+ Adicionar custo</button>
+        <Button onClick={() => setItemForm(blankItem())}>+ Adicionar custo</Button>
       </header>
-
-      {error ? <div className="error-banner">{error}<button onClick={() => setError("")}>×</button></div> : null}
-      {notice ? <div className="budget-notice">{notice}<button onClick={() => setNotice("")}>×</button></div> : null}
 
       <form className="budget-fund-card" onSubmit={saveConfig}>
         <div className="budget-fund-copy"><span className="budget-icon">R$</span><div><strong>Defina o dinheiro disponível</strong><p>O saldo será recalculado sempre que um custo ou pessoa for alterado.</p></div></div>
-        <label><span>Nome do cenário</span><input value={config.nome_cenario} onChange={(event) => setConfig({ ...config, nome_cenario: event.target.value })} /></label>
-        <label><span>Fundo previsto</span><input type="number" min="0" step="1000" value={config.fundo_total} onChange={(event) => setConfig({ ...config, fundo_total: event.target.value })} /></label>
-        <label><span>Reserva de segurança</span><div className="budget-suffix"><input type="number" min="0" max="100" step="1" value={config.reserva_percentual} onChange={(event) => setConfig({ ...config, reserva_percentual: event.target.value })} /><i>%</i></div></label>
-        <button className="primary-button" disabled={saving}>{saving ? "Salvando…" : "Salvar cenário"}</button>
+        <label><span>Nome do cenário</span><Input value={config.nome_cenario} onChange={(event) => setConfig({ ...config, nome_cenario: event.target.value })} /></label>
+        <label><span>Fundo previsto</span><Input type="number" min="0" step="1000" value={config.fundo_total} onChange={(event) => setConfig({ ...config, fundo_total: event.target.value })} /></label>
+        <label><span>Reserva de segurança</span><div className="budget-suffix"><Input type="number" min="0" max="100" step="1" value={config.reserva_percentual} onChange={(event) => setConfig({ ...config, reserva_percentual: event.target.value })} /><i>%</i></div></label>
+        <Button disabled={saving}>{saving ? "Salvando…" : "Salvar cenário"}</Button>
       </form>
       <p className="budget-save-state"><span>✓</span> Dados salvos no sistema{data.config.atualizado_em ? ` · última atualização em ${savedAt(data.config.atualizado_em)}` : ""}</p>
 
@@ -127,27 +137,49 @@ export default function OrcamentoPage() {
       <div className="budget-main-grid">
         <section className="budget-panel">
           <div className="budget-panel-head"><div><span className="eyebrow">Distribuição</span><h2>Onde o dinheiro está indo</h2></div><small>Por categoria</small></div>
-          {data.categorias.length ? <div className="budget-category-list">{data.categorias.map((item, index) => <div key={item.categoria}><div><span><i style={{ "--budget-color": CATEGORY_COLORS[index % CATEGORY_COLORS.length] }} />{item.categoria}</span><strong>{money.format(item.total)}</strong></div><div className="budget-category-track"><span style={{ width: `${(item.total / maxCategory) * 100}%`, "--budget-color": CATEGORY_COLORS[index % CATEGORY_COLORS.length] }} /></div><small>{data.config.fundo_total ? `${percent.format((item.total / data.config.fundo_total) * 100)}% do fundo` : "Defina o fundo para ver o percentual"}</small></div>)}</div> : <div className="budget-empty"><span>◎</span><h3>A distribuição aparecerá aqui</h3><p>Adicione os primeiros custos para comparar as áreas da campanha.</p></div>}
+          {data.categorias.length ? (
+            <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
+              <BarChart data={data.categorias} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <CartesianGrid horizontal={false} />
+                <XAxis type="number" tickFormatter={(value) => money.format(value)} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="categoria" width={120} tick={{ fontSize: 11 }} />
+                <ChartTooltip content={<ChartTooltipContent hideLabel formatter={(value) => money.format(value)} />} />
+                <Bar dataKey="total" radius={4}>
+                  {data.categorias.map((entry, index) => <Cell key={entry.categoria} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          ) : <div className="budget-empty"><span>◎</span><h3>A distribuição aparecerá aqui</h3><p>Adicione os primeiros custos para comparar as áreas da campanha.</p></div>}
         </section>
 
         <section className="budget-panel budget-team-panel">
           <div className="budget-panel-head"><div><span className="eyebrow">Base automática</span><h2>Equipe cadastrada</h2></div><small>Atualização dinâmica</small></div>
           <div className="budget-team-counts"><div><strong>{data.contadores.cabos}</strong><span>Cabos</span></div><div><strong>{data.contadores.liderancas}</strong><span>Lideranças</span></div><div><strong>{data.contadores.coordenadores}</strong><span>Coordenação</span></div></div>
           <p>Você pode usar os números cadastrados ou criar uma simulação sem alterar a equipe real.</p>
-          <div className="budget-team-actions"><button className="secondary-button" onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Usar cabos cadastrados</button><button className="secondary-button simulation" onClick={() => setItemForm(blankItem({ ...TEMPLATES[0], modo_quantidade: "simulacao", quantidade: Math.max(1, data.contadores.cabos) }))}>Simular quantidade</button></div>
+          <div className="budget-team-actions"><Button variant="outline" onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Usar cabos cadastrados</Button><Button variant="outline" className="simulation" onClick={() => setItemForm(blankItem({ ...TEMPLATES[0], modo_quantidade: "simulacao", quantidade: Math.max(1, data.contadores.cabos) }))}>Simular quantidade</Button></div>
         </section>
       </div>
 
       <section className="budget-costs-card">
-        <div className="budget-costs-head"><div><span className="eyebrow">Calculadora orçamentária</span><h2>Custos planejados</h2><p>Cada linha calcula quantidade × valor × meses ou parcelas.</p></div><button className="primary-button" onClick={() => setItemForm(blankItem())}>+ Novo custo</button></div>
+        <div className="budget-costs-head"><div><span className="eyebrow">Calculadora orçamentária</span><h2>Custos planejados</h2><p>Cada linha calcula quantidade × valor × meses ou parcelas. Clique em cima de um valor pra editar direto.</p></div><Button onClick={() => setItemForm(blankItem())}>+ Novo custo</Button></div>
         <div className="budget-template-row"><span>Adicionar rápido:</span>{TEMPLATES.map((template) => <button key={template.nome} onClick={() => setItemForm(blankItem(template))}>{template.nome}</button>)}</div>
         {data.items.length ? <div className="budget-cost-list">{data.items.map((item) => <article key={item.id}>
           <span className="budget-item-symbol">{item.categoria.slice(0, 2).toUpperCase()}</span>
-          <div className="budget-item-name"><span>{item.categoria}</span><strong>{item.nome}</strong>{item.observacao ? <small>{item.observacao}</small> : null}</div>
-          <div className="budget-item-formula"><span>{item.quantidade_calculada} × {money.format(item.custo_unitario)}{item.periodos !== 1 ? ` × ${item.periodos} períodos` : ""}</span><small>{item.vinculo === "manual" ? "Quantidade informada" : item.modo_quantidade === "simulacao" ? `Simulação de ${LINKS[item.vinculo].toLowerCase()}` : LINKS[item.vinculo]}</small></div>
+          <div className="budget-item-name">
+            <EditableText value={item.categoria} onSave={(value) => value && updateItem(item, { categoria: value })} className="block text-xs text-muted-foreground" />
+            <EditableText value={item.nome} onSave={(value) => value && updateItem(item, { nome: value })} className="block font-semibold" />
+            <EditableText value={item.observacao || ""} placeholder="Adicionar observação" multiline onSave={(value) => updateItem(item, { observacao: value })} className="block text-xs" />
+          </div>
+          <div className="budget-item-formula">
+            <span>
+              {item.quantidade_calculada} × <EditableText value={String(item.custo_unitario)} type="number" onSave={(value) => updateItem(item, { custo_unitario: Number(value) || 0 })} className="inline-flex" />
+              {item.periodos !== 1 ? <> × <EditableText value={String(item.periodos)} type="number" onSave={(value) => updateItem(item, { periodos: Number(value) || 1 })} className="inline-flex" /> períodos</> : null}
+            </span>
+            <small>{item.vinculo === "manual" ? "Quantidade informada" : item.modo_quantidade === "simulacao" ? `Simulação de ${LINKS[item.vinculo].toLowerCase()}` : LINKS[item.vinculo]}</small>
+          </div>
           <strong className="budget-item-total">{money.format(item.total)}</strong>
-          <div className="budget-item-actions"><button onClick={() => setItemForm({ ...item })}>Editar</button><button className="danger-link" onClick={() => deleteItem(item)}>Excluir</button></div>
-        </article>)}</div> : <div className="budget-empty wide"><span>＋</span><h3>Comece pelo maior custo</h3><p>Por exemplo: vincule “Remuneração dos cabos” aos cabos cadastrados e informe o valor por pessoa.</p><button className="primary-button" onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Adicionar custo dos cabos</button></div>}
+          <div className="budget-item-actions"><Button variant="ghost" size="sm" onClick={() => setItemForm({ ...item })}>Vínculo</Button><Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(item)}>Excluir</Button></div>
+        </article>)}</div> : <div className="budget-empty wide"><span>＋</span><h3>Comece pelo maior custo</h3><p>Por exemplo: vincule "Remuneração dos cabos" aos cabos cadastrados e informe o valor por pessoa.</p><Button onClick={() => setItemForm(blankItem(TEMPLATES[0]))}>Adicionar custo dos cabos</Button></div>}
       </section>
 
       <p className="budget-disclaimer">Ferramenta interna de simulação e decisão. A prestação de contas oficial deve ser acompanhada pela contabilidade e assessoria jurídica da campanha.</p>
@@ -166,6 +198,14 @@ export default function OrcamentoPage() {
           <div className="modal-actions full"><button type="button" className="secondary-button" onClick={() => setItemForm(null)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? "Salvando…" : "Salvar no orçamento"}</button></div>
         </form>
       </Modal> : null}
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title={`Excluir "${deleteTarget?.nome}"?`}
+        description="Remove esse custo do orçamento planejado."
+        onConfirm={() => { deleteItem(deleteTarget); setDeleteTarget(null); }}
+      />
     </main>
   );
 }
