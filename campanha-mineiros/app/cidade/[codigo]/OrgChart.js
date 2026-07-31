@@ -60,8 +60,8 @@ export default function OrgChart({ cidade, onEdit, onAdd }) {
   const coordinators = cidade.lideres.filter((item) => item.nivel === "coordenacao");
   const chefes = cidade.lideres.filter((item) => item.nivel === "chefe_gabinete");
   const leaders = cidade.lideres.filter((item) => item.nivel === "lideranca");
-  const superiorIds = new Set([...coordinators, ...chefes].map((item) => item.id));
-  const direct = leaders.filter((item) => !item.responsavel_id || !superiorIds.has(item.responsavel_id));
+  const chefeIds = new Set(chefes.map((item) => item.id));
+  const direct = leaders.filter((item) => !item.responsavel_id || !chefeIds.has(item.responsavel_id));
 
   if (!cidade.lideres.length) return <div className="empty-state"><span>◎</span><h3>A estrutura começa pela coordenação</h3><p>Adicione a primeira pessoa e escolha o papel dela. O organograma será montado automaticamente.</p><button className="primary-button" onClick={() => onAdd()}>Adicionar primeira pessoa</button></div>;
 
@@ -69,21 +69,24 @@ export default function OrgChart({ cidade, onEdit, onAdd }) {
     <div className="org-chart">
       <div className="org-root"><span>Coordenação geral · estrutura local</span><strong>{cidade.nome}</strong><small>{coordinators.length} na coordenação da campanha · {chefes.length} chefes de gabinete · {leaders.length} lideranças locais · {cabos.length} cabos</small></div>
       <div className="org-trunk" />
-      <div className="coord-grid">
-        {coordinators.map((coordinator) => {
-          const chefeTeam = chefes.filter((chefe) => chefe.responsavel_id === coordinator.id);
-          const directLeaders = leaders.filter((leader) => leader.responsavel_id === coordinator.id);
-          const totalLideresNaCoordenacao = chefeTeam.reduce((sum, chefe) => sum + leaders.filter((leader) => leader.responsavel_id === chefe.id).length, 0) + directLeaders.length;
-          return <section className="coord-branch" key={coordinator.id}>
-            <article className="coord-card"><button className="card-edit" onClick={() => onEdit(coordinator)}>Editar</button><span className="role-label">Coordenação de toda a campanha</span><div className="person-avatar light">{coordinator.nome.slice(0, 2).toUpperCase()}</div><h3>{coordinator.nome}</h3><p>{coordinator.cargo || "Coordenação geral da campanha"}</p><span className="coord-global-note">Mesma coordenação em todas as cidades</span><div className="coord-summary"><span>{chefeTeam.length} chefes de gabinete</span><span>{totalLideresNaCoordenacao} líderes em {cidade.nome}</span></div></article>
-            <div className="branch-line" />
-            {chefeTeam.length ? <div className="chefe-grid">{chefeTeam.map((chefe) => <ChefeBranch key={chefe.id} chefe={chefe} leaders={leaders} bairros={bairros} cabos={cabos} onEdit={onEdit} onAdd={onAdd} />)}</div> : null}
-            {directLeaders.length ? <LeaderStack leaders={directLeaders} bairros={bairros} cabos={cabos} onEdit={onEdit} /> : null}
-            {!chefeTeam.length && !directLeaders.length ? <button className="empty-branch" onClick={() => onAdd({ nivel: "chefe_gabinete", responsavel_id: coordinator.id })}>+ Adicionar chefe de gabinete ou liderança</button> : null}
-          </section>;
-        })}
-        {direct.length ? <section className="coord-branch direct-branch"><article className="coord-card neutral-card"><span className="role-label">Ligação direta</span><h3>Equipe de {cidade.nome}</h3><p>Lideranças ainda sem responsável definido na coordenação geral</p><div className="coord-summary"><span>{direct.length} líderes</span></div></article><div className="branch-line" /><LeaderStack leaders={direct} bairros={bairros} cabos={cabos} onEdit={onEdit} /></section> : null}
-      </div>
+      <section className="coord-collective">
+        <div className="coord-collective-head"><span className="role-label">Coordenação de toda a campanha</span><p>Comanda toda a estrutura de {cidade.nome} em conjunto — sem hierarquia entre eles.</p></div>
+        <div className="coord-collective-grid">
+          {coordinators.length ? coordinators.map((coordinator) => (
+            <article className="coord-card" key={coordinator.id}>
+              <button className="card-edit" onClick={() => onEdit(coordinator)}>Editar</button>
+              <div className="person-avatar light">{coordinator.nome.slice(0, 2).toUpperCase()}</div>
+              <h3>{coordinator.nome}</h3>
+              <p>{coordinator.cargo || "Coordenação geral da campanha"}</p>
+              <span className="coord-global-note">Mesma coordenação em todas as cidades</span>
+            </article>
+          )) : <button className="empty-branch" onClick={() => onAdd({ nivel: "coordenacao" })}>+ Adicionar coordenação</button>}
+        </div>
+      </section>
+      <div className="branch-line" />
+      {chefes.length ? <div className="chefe-grid">{chefes.map((chefe) => <ChefeBranch key={chefe.id} chefe={chefe} leaders={leaders} bairros={bairros} cabos={cabos} onEdit={onEdit} onAdd={onAdd} />)}</div> : null}
+      {direct.length ? <section className="coord-branch direct-branch"><article className="coord-card neutral-card"><span className="role-label">Ligação direta com a coordenação</span><h3>Equipe de {cidade.nome}</h3><p>Lideranças ainda sem chefe de gabinete definido</p><div className="coord-summary"><span>{direct.length} líderes</span></div></article><div className="branch-line" /><LeaderStack leaders={direct} bairros={bairros} cabos={cabos} onEdit={onEdit} /></section> : null}
+      {!chefes.length && !direct.length ? <button className="empty-branch" onClick={() => onAdd({ nivel: "chefe_gabinete" })}>+ Adicionar chefe de gabinete ou liderança</button> : null}
     </div>
   );
 }

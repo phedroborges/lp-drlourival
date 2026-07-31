@@ -431,6 +431,11 @@ h1,h2,h3,h4,.brand-placa,.stat .num,.kpi .num { font-style: normal; letter-spaci
 .chefe-branch { min-width: 0; padding: .6rem; border: 1px dashed #c9d1dd; border-radius: 12px; background: #f8f9ff; }
 .chefe-card { border-top: 3px solid var(--ui-primary); text-align: center; }
 .chefe-card h4 { margin: .3rem 0 .05rem; color: var(--ui-text); font-size: 12px; }
+.coord-collective { padding: .8rem; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-blue); }
+.coord-collective-head { margin-bottom: .6rem; text-align: center; }
+.coord-collective-head p { margin: .2rem 0 0; color: var(--muted); font-size: .72rem; }
+.coord-collective-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: .7rem; }
+.coord-collective-grid .coord-card { background: #fff; }
 .quick-tags { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: .5rem 0; }
 .quick-tag-select { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: .16rem .45rem; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--muted); cursor: pointer; }
 .quick-tag-select.verde { background: var(--verde-soft); border-color: var(--verde); color: #1f7a48; }
