@@ -20,7 +20,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" className={kanit.variable}>
-      <body>
+      <body suppressHydrationWarning>
         <TooltipProvider delayDuration={200}>
           <AppFrame>{children}</AppFrame>
           <Toaster position="bottom-right" />

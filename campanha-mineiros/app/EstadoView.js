@@ -1,13 +1,13 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Cell, Pie, PieChart } from "recharts";
 import EstadoMap from "./EstadoMap";
+import PrintableReport from "./PrintableReport";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-
-const TEMPERATURE_COLORS = { apoio: "#21a56b", aproximacao: "#f4b740", resistencia: "#ee6a5c", semLeitura: "#e7eaee" };
+import { TEMPERATURE_COLORS } from "@/lib/temperature";
 const temperatureChartConfig = {
   valor: { label: "Pessoas" },
   apoio: { label: "Apoio", color: TEMPERATURE_COLORS.apoio },
@@ -69,6 +69,7 @@ export default function EstadoView({ municipios }) {
   const [query, setQuery] = useState("");
   const mineiros = municipios.find((city) => city.nome === "Mineiros");
   const [preview, setPreview] = useState(mineiros || null);
+  const handlePreview = useCallback((city) => city && setPreview(city), []);
   const normalized = query.trim().toLocaleLowerCase("pt-BR");
   const totals = municipios.reduce((acc, city) => ({ lideres: acc.lideres + city.nLideres, cabos: acc.cabos + city.nCabos, cidades: acc.cidades + (city.total > 0 ? 1 : 0), territorios: acc.territorios + city.nBairrosAtivos }), { lideres: 0, cabos: 0, cidades: 0, territorios: 0 });
   const filtered = useMemo(() => municipios.filter((city) => !normalized || city.nome.toLocaleLowerCase("pt-BR").includes(normalized)), [municipios, normalized]);
@@ -87,8 +88,8 @@ export default function EstadoView({ municipios }) {
 
     <section className="dashboard-grid">
       <Card className="state-map-card">
-        <div className="card-heading"><div><span className="card-kicker">Cobertura estadual</span><h2>Mapa de Goiás</h2></div><div className="map-status"><span><i />Com estrutura</span><span><i />Sem estrutura</span></div></div>
-        <EstadoMap municipios={municipios} onPreview={(city) => city && setPreview(city)} />
+        <div className="card-heading"><div><span className="card-kicker">Cobertura estadual</span><h2>Mapa de Goiás</h2></div><button type="button" className="export-pdf-btn" onClick={() => window.print()}>⤓ Exportar PDF</button></div>
+        <EstadoMap municipios={municipios} onPreview={handlePreview} />
       </Card>
       <div className="analytics-column"><CityPreview city={preview} /><TemperatureChart city={preview || mineiros} /></div>
     </section>
@@ -97,5 +98,7 @@ export default function EstadoView({ municipios }) {
       <div className="directory-head"><div><span className="card-kicker">Operação territorial</span><h2>Municípios</h2><p>Passe sobre uma cidade para atualizar os indicadores ao lado do mapa.</p></div><label className="search-field"><span>⌕</span><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar município" /></label></div>
       <div className="citylist">{normalized ? filtered.map((city) => <CityRow key={city.codigo} city={city} onPreview={setPreview} />) : <><div className="subhead">Sudoeste Goiano <span>{southwest.length}</span></div>{southwest.map((city) => <CityRow key={city.codigo} city={city} onPreview={setPreview} />)}<div className="subhead">Demais municípios <span>{others.length}</span></div>{others.map((city) => <CityRow key={city.codigo} city={city} onPreview={setPreview} />)}</>}{!filtered.length ? <div className="empty">Nenhum município encontrado.</div> : null}</div>
     </Card>
+
+    <PrintableReport municipios={municipios} />
   </main>;
 }
