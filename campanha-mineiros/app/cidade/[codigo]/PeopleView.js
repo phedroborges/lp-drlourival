@@ -23,7 +23,7 @@ export default function PeopleView({ cidade, onEdit, onAdd, onQuickUpdate, onDel
           <h2>Pessoas da operação</h2>
           <p>
             A coordenação comanda toda a estrutura em conjunto, sem vínculo individual. Clique em
-            cima do nome, cargo, telefone ou das etiquetas do cartão pra editar na hora.
+            cima do nome, telefone ou das etiquetas do cartão pra editar na hora.
           </p>
         </div>
         <div className="flex gap-2">

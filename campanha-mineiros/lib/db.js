@@ -28,6 +28,42 @@ function patch(origem, campos) {
 
 function texto(valor) { return String(valor ?? "").trim(); }
 
+// O PostgREST enxerga o muitos-para-muitos por lider_tag sozinho.
+const COM_TAGS = "*, tags:tag(id, nome, ordem)";
+
+function ordenarTags(lider) {
+  return { ...lider, tags: (lider.tags || []).sort((a, b) => a.ordem - b.ordem) };
+}
+
+async function trocarTags(lider_id, tag_ids) {
+  ok(await admin.from("lider_tag").delete().eq("lider_id", lider_id));
+  const novos = [...new Set((tag_ids || []).map(Number))].filter(Boolean);
+  if (novos.length) {
+    ok(await admin.from("lider_tag").insert(novos.map((tag_id) => ({ lider_id, tag_id }))));
+  }
+}
+
+/* ------------------------- Tags ------------------------- */
+export async function getTags() {
+  return ok(await admin.from("tag").select("*").order("ordem").order("nome"));
+}
+
+// Deixa a coordenação criar uma tag nova na hora, sem depender de deploy.
+export async function createTag({ nome }) {
+  const limpo = texto(nome);
+  if (!limpo) throw new Error("Informe o nome da tag");
+  const existente = ok(
+    await admin.from("tag").select("*").ilike("nome", limpo).maybeSingle()
+  );
+  if (existente) return existente;
+  const ultima = ok(
+    await admin.from("tag").select("ordem").order("ordem", { ascending: false }).limit(1).maybeSingle()
+  );
+  return ok(
+    await admin.from("tag").insert({ nome: limpo, ordem: (ultima?.ordem ?? -1) + 1 }).select("*").single()
+  );
+}
+
 /* ------------------------- Estado (mapa) ------------------------- */
 export async function getEstado() {
   const linhas = ok(await admin.from("estado_resumo").select("*"));
@@ -47,7 +83,7 @@ export async function getMunicipio(codigo) {
   if (!municipio) return null;
 
   const [lideres, cabos, rotas, tarefas] = await Promise.all([
-    admin.from("lider").select("*")
+    admin.from("lider").select(COM_TAGS)
       .or(`nivel.in.(${NIVEIS_GLOBAIS.join(",")}),municipio_codigo.eq.${codigo}`)
       .then(ok),
     admin.from("cabo").select("*").eq("municipio_codigo", codigo).then(ok),
@@ -58,7 +94,7 @@ export async function getMunicipio(codigo) {
   return {
     ...municipio,
     lideres: lideres
-      .map((lider) => ({ ...lider, escopo_global: ehGlobal(lider.nivel) ? 1 : 0 }))
+      .map((lider) => ({ ...ordenarTags(lider), escopo_global: ehGlobal(lider.nivel) ? 1 : 0 }))
       .sort((a, b) => (ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]) || porNome(a, b)),
     cabos: cabos.sort(porNome),
     rotas,
@@ -72,7 +108,6 @@ export async function createLider(dados) {
   const registro = {
     municipio_codigo: dados.municipio_codigo,
     nome: texto(dados.nome),
-    cargo: dados.cargo ?? "",
     contato: dados.contato ?? "",
     classificacao: dados.classificacao ?? "",
     observacao: dados.observacao ?? "",
@@ -82,7 +117,9 @@ export async function createLider(dados) {
     lat: dados.lat ?? null,
     lng: dados.lng ?? null,
   };
-  return ok(await admin.from("lider").insert(registro).select("*").single());
+  const criado = ok(await admin.from("lider").insert(registro).select("id").single());
+  await trocarTags(criado.id, dados.tag_ids);
+  return ordenarTags(ok(await admin.from("lider").select(COM_TAGS).eq("id", criado.id).single()));
 }
 
 export async function updateLider(dados) {
@@ -95,7 +132,7 @@ export async function updateLider(dados) {
   const nivel = dados.nivel || atual.nivel;
   const global = ehGlobal(nivel);
   const alteracoes = patch(dados, [
-    "nome", "cargo", "contato", "classificacao", "observacao",
+    "nome", "contato", "classificacao", "observacao",
     "endereco", "lat", "lng",
   ]);
   alteracoes.nivel = nivel;
@@ -108,9 +145,10 @@ export async function updateLider(dados) {
     : (dados.responsavel_id === undefined ? atual.responsavel_id : (dados.responsavel_id || null));
   if (alteracoes.nome !== undefined) alteracoes.nome = texto(alteracoes.nome);
 
-  return ok(
-    await admin.from("lider").update(alteracoes).eq("id", dados.id).select("*").single()
-  );
+  ok(await admin.from("lider").update(alteracoes).eq("id", dados.id));
+  // Edição rápida no cartão não manda tag_ids; só troca quando o campo vem.
+  if (Array.isArray(dados.tag_ids)) await trocarTags(dados.id, dados.tag_ids);
+  return ordenarTags(ok(await admin.from("lider").select(COM_TAGS).eq("id", dados.id).single()));
 }
 
 export async function deleteLider(id) {
@@ -348,14 +386,14 @@ export async function deleteTarefa(id) {
 /* ------------------------- Equipe ------------------------- */
 export async function getEquipe() {
   const [lideres, cabos] = await Promise.all([
-    admin.from("lider").select("*, municipio(nome)").then(ok),
+    admin.from("lider").select(`${COM_TAGS}, municipio(nome)`).then(ok),
     admin.from("cabo").select("*, municipio(nome), lider(nome)").then(ok),
   ]);
 
   return {
     lideres: lideres
       .map(({ municipio, ...lider }) => ({
-        ...lider,
+        ...ordenarTags(lider),
         escopo_global: ehGlobal(lider.nivel) ? 1 : 0,
         municipio_nome: ehGlobal(lider.nivel) ? "Toda a campanha" : (municipio?.nome ?? ""),
       }))
@@ -596,7 +634,8 @@ export async function importContatos(cidades) {
       const chave = `${codigo}|${nome.toLocaleLowerCase("pt-BR")}`;
       if (jaCadastrados.has(chave)) { pulados++; continue; }
       jaCadastrados.add(chave);
-      novos.push({ municipio_codigo: codigo, nome, cargo: pessoa.cargo || "", observacao: pessoa.obs || "" });
+      const anotacoes = [pessoa.cargo, pessoa.obs].map((item) => String(item || "").trim()).filter(Boolean);
+      novos.push({ municipio_codigo: codigo, nome, observacao: anotacoes.join(" · ") });
       adicionados++;
     }
     if (adicionados) municipiosAtingidos++;
@@ -607,10 +646,10 @@ export async function importContatos(cidades) {
 }
 
 export async function exportAll() {
-  const [municipios, lideres, cabos, rotas, rota_pontos, tarefas, tarefa_cabos, estrategias, orcamento_config, orcamento_itens] =
+  const [municipios, lideres, cabos, rotas, rota_pontos, tarefas, tarefa_cabos, estrategias, orcamento_config, orcamento_itens, tags] =
     await Promise.all([
       admin.from("municipio").select("*").order("nome").then(ok),
-      admin.from("lider").select("*").order("id").then(ok),
+      admin.from("lider").select(COM_TAGS).order("id").then(ok),
       admin.from("cabo").select("*").order("id").then(ok),
       admin.from("rota").select("*").order("id").then(ok),
       admin.from("rota_ponto").select("*").order("rota_id").order("ordem").then(ok),
@@ -619,11 +658,12 @@ export async function exportAll() {
       admin.from("estrategia").select("*").order("id").then(ok),
       admin.from("orcamento_config").select("*").eq("id", 1).single().then(ok),
       admin.from("orcamento_item").select("*").order("ordem").then(ok),
+      admin.from("tag").select("*").order("ordem").then(ok),
     ]);
 
   return {
     exportado_em: new Date().toISOString(),
     municipios, lideres, cabos, rotas, rota_pontos, tarefas, tarefa_cabos,
-    estrategias, orcamento_config, orcamento_itens,
+    estrategias, orcamento_config, orcamento_itens, tags,
   };
 }

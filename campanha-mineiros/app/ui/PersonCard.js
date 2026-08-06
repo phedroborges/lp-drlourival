@@ -15,11 +15,22 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import TemperaturePicker from "@/app/ui/TemperaturePicker";
 
-export function cargoPadrao(nivel) {
+export function papelPadrao(nivel) {
+  if (nivel === "candidato") return "Candidato";
   if (nivel === "coordenacao") return "Coordenação da campanha";
   if (nivel === "chefe_gabinete") return "Chefe de gabinete";
   if (nivel === "apoiador") return "Apoiador";
   return "Liderança";
+}
+
+/** Tags do tipo de liderança. Editadas no modal, não no cartão. */
+export function TagChips({ tags = [] }) {
+  if (!tags.length) return null;
+  return (
+    <div className="tag-chips">
+      {tags.map((tag) => <span key={tag.id}>{tag.nome}</span>)}
+    </div>
+  );
 }
 
 /**
@@ -40,12 +51,8 @@ export default function PersonCard({ person, chefes = [], onQuickUpdate, onEdit,
             onSave={(value) => value && onQuickUpdate(person, { nome: value })}
             className="block font-semibold text-[0.95rem]"
           />
-          <EditableText
-            value={person.cargo || ""}
-            placeholder={cargoPadrao(person.nivel)}
-            onSave={(value) => onQuickUpdate(person, { cargo: value })}
-            className="block text-xs text-muted-foreground"
-          />
+          <span className="block text-xs text-muted-foreground">{papelPadrao(person.nivel)}</span>
+          <TagChips tags={person.tags} />
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger

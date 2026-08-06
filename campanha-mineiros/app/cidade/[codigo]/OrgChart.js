@@ -15,6 +15,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import TemperaturePicker from "@/app/ui/TemperaturePicker";
+import { TagChips } from "@/app/ui/PersonCard";
 
 function CardMenu({ person, onEdit, onDelete }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -59,12 +60,7 @@ function LeaderCard({ leader, cabos, onEdit, onQuickUpdate, onDelete }) {
           onSave={(value) => value && onQuickUpdate(leader, { nome: value })}
           className="block font-semibold"
         />
-        <EditableText
-          value={leader.cargo || ""}
-          placeholder="Liderança territorial"
-          onSave={(value) => onQuickUpdate(leader, { cargo: value })}
-          className="block text-xs text-muted-foreground"
-        />
+        <TagChips tags={leader.tags} />
         <TemperaturePicker
           value={leader.classificacao || ""}
           onSave={(value) => onQuickUpdate(leader, { classificacao: value })}
@@ -138,12 +134,7 @@ function ChefeBranch({ chefe, leaders, cabos, onEdit, onAdd, onQuickUpdate, onDe
           onSave={(value) => value && onQuickUpdate(chefe, { nome: value })}
           className="mx-auto block w-fit font-semibold"
         />
-        <EditableText
-          value={chefe.cargo || ""}
-          placeholder="Chefia de gabinete"
-          onSave={(value) => onQuickUpdate(chefe, { cargo: value })}
-          className="mx-auto block w-fit text-xs text-muted-foreground"
-        />
+        <TagChips tags={chefe.tags} />
         <TemperaturePicker
           value={chefe.classificacao || ""}
           onSave={(value) => onQuickUpdate(chefe, { classificacao: value })}
@@ -181,12 +172,7 @@ function CoordinatorCard({ coordinator, onEdit, onQuickUpdate, onDelete }) {
         onSave={(value) => value && onQuickUpdate(coordinator, { nome: value })}
         className="mx-auto block w-fit font-semibold"
       />
-      <EditableText
-        value={coordinator.cargo || ""}
-        placeholder="Coordenação geral da campanha"
-        onSave={(value) => onQuickUpdate(coordinator, { cargo: value })}
-        className="mx-auto block w-fit text-xs text-muted-foreground"
-      />
+      <TagChips tags={coordinator.tags} />
       <span className="coord-global-note">Mesma coordenação em todas as cidades</span>
     </article>
   );

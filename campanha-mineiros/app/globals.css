@@ -862,3 +862,20 @@ h1,h2,h3,h4,.brand-placa,.stat .num,.kpi .num { font-style: normal; letter-spaci
 .cabo-card strong { color: var(--ui-text, var(--tinta)); font-size: .82rem; }
 .cabo-card small { color: var(--brand-muted); font-size: .66rem; }
 .cabo-card span { color: var(--azul); font-size: .66rem; }
+
+/* ---------- Tags de tipo de liderança ---------- */
+.tag-picker { margin: 0; padding: .85rem; border: 1px solid var(--ui-line, var(--brand-border)); border-radius: 13px; }
+.tag-picker legend { color: var(--ui-text, var(--azul)); font-size: .8rem; font-weight: 700; padding: 0 .3rem; }
+.tag-picker > p { margin: 0 0 .6rem; color: var(--brand-muted); font-size: .7rem; }
+.tag-options { display: flex; flex-wrap: wrap; gap: .35rem; }
+.tag-options label { display: block; }
+.tag-options label input { position: absolute; opacity: 0; pointer-events: none; }
+.tag-options label span { display: block; padding: .3rem .65rem; border: 1px solid var(--ui-line, var(--brand-border)); border-radius: 999px; color: var(--tinta); background: #fff; font-size: .74rem; cursor: pointer; }
+.tag-options label span:hover { border-color: var(--ui-primary, var(--azul)); }
+.tag-options label.selected span { color: #fff; border-color: var(--ui-primary, var(--azul)); background: var(--ui-primary, var(--azul)); }
+.tag-options label input:focus-visible + span { outline: 2px solid var(--ui-primary, var(--azul)); outline-offset: 2px; }
+.tag-new { display: flex; gap: .4rem; margin-top: .7rem; padding-top: .7rem; border-top: 1px solid var(--ui-line, var(--brand-border)); }
+.tag-new input { flex: 1; }
+
+.tag-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .3rem; }
+.tag-chips span { padding: .15rem .45rem; border-radius: 999px; color: var(--ui-primary, var(--azul)); background: var(--ui-primary-soft, var(--surface-blue)); font-size: .63rem; font-weight: 600; }

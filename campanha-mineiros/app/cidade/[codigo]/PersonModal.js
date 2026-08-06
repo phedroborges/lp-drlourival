@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,17 +15,49 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
-const EMPTY = { nome: "", nivel: "lideranca", cargo: "", contato: "", classificacao: "", responsavel_id: "", observacao: "", endereco: "" };
+const EMPTY = { nome: "", nivel: "lideranca", contato: "", classificacao: "", responsavel_id: "", observacao: "", endereco: "", tag_ids: [] };
 
 export default function PersonModal({ person, cidade, onClose, onSave, onDelete }) {
   const [form, setForm] = useState(person ? {
     ...EMPTY, ...person,
     responsavel_id: person.responsavel_id || "",
+    tag_ids: (person.tags || []).map((tag) => tag.id),
   } : EMPTY);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [novaTag, setNovaTag] = useState("");
   const chefes = useMemo(() => cidade.lideres.filter((item) => item.nivel === "chefe_gabinete" && item.id !== person?.id), [cidade, person]);
 
+  useEffect(() => {
+    fetch("/api/tags", { cache: "no-store" })
+      .then((resposta) => resposta.json())
+      .then((lista) => Array.isArray(lista) && setTags(lista))
+      .catch(() => {});
+  }, []);
+
   function update(field, value) { setForm((current) => ({ ...current, [field]: value })); }
+
+  function alternarTag(id) {
+    update("tag_ids", form.tag_ids.includes(id)
+      ? form.tag_ids.filter((item) => item !== id)
+      : [...form.tag_ids, id]);
+  }
+
+  // Tag que falta na lista é criada na hora, sem precisar de deploy.
+  async function criarTag() {
+    const nome = novaTag.trim();
+    if (!nome) return;
+    const resposta = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome }),
+    });
+    if (!resposta.ok) return;
+    const tag = await resposta.json();
+    setTags((atuais) => atuais.some((item) => item.id === tag.id) ? atuais : [...atuais, tag]);
+    if (!form.tag_ids.includes(tag.id)) update("tag_ids", [...form.tag_ids, tag.id]);
+    setNovaTag("");
+  }
   async function submit(event) {
     event.preventDefault();
     if (!form.nome.trim()) return;
@@ -56,10 +88,6 @@ export default function PersonModal({ person, cidade, onClose, onSave, onDelete 
             <Label className="flex-col items-start gap-1">
               Nome completo *
               <Input autoFocus value={form.nome} onChange={(e) => update("nome", e.target.value)} />
-            </Label>
-            <Label className="flex-col items-start gap-1">
-              Papel / atuação
-              <Input value={form.cargo} onChange={(e) => update("cargo", e.target.value)} placeholder="Ex.: liderança comunitária" />
             </Label>
             <Label className="flex-col items-start gap-1">
               Telefone ou WhatsApp
@@ -111,6 +139,27 @@ export default function PersonModal({ person, cidade, onClose, onSave, onDelete 
               <Input value={form.endereco} onChange={(e) => update("endereco", e.target.value)} placeholder="Rua, número ou ponto de apoio" />
             </Label>
           </div>
+          <fieldset className="tag-picker">
+            <legend>Tipo de liderança</legend>
+            <p>Escolha quantas quiser. É por aqui que a coordenação filtra a base.</p>
+            <div className="tag-options">
+              {tags.map((tag) => (
+                <label key={tag.id} className={form.tag_ids.includes(tag.id) ? "selected" : ""}>
+                  <input type="checkbox" checked={form.tag_ids.includes(tag.id)} onChange={() => alternarTag(tag.id)} />
+                  <span>{tag.nome}</span>
+                </label>
+              ))}
+            </div>
+            <div className="tag-new">
+              <Input
+                value={novaTag}
+                onChange={(e) => setNovaTag(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); criarTag(); } }}
+                placeholder="Faltou alguma? Escreva e adicione"
+              />
+              <Button type="button" variant="outline" onClick={criarTag} disabled={!novaTag.trim()}>Adicionar</Button>
+            </div>
+          </fieldset>
           <Label className="flex-col items-start gap-1">
             Notas estratégicas
             <Textarea rows="3" value={form.observacao} onChange={(e) => update("observacao", e.target.value)} placeholder="Contexto, combinados e próximo contato" />

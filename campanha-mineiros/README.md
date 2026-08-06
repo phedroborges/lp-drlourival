@@ -8,6 +8,12 @@ A estrutura é `município → liderança → cabo`. Os níveis de liderança s�
 inteira ou pelo gabinete), além de `lideranca` e `apoiador`. Não existe
 divisão por bairro: o território é a própria cidade.
 
+O **tipo de liderança** é um conjunto de tags padronizadas (tabela `tag`,
+ligada por `lider_tag`), e não texto livre — antes cada um escrevia "Igreja",
+"Igreja / família" e "Liderança de igreja" para a mesma coisa, o que tornava
+o filtro inútil. Uma pessoa pode ter quantas tags precisar. A coordenação
+cria tags novas pelo próprio modal de pessoa, sem depender de deploy.
+
 ## Banco
 
 Postgres no Supabase (projeto `dr-lourival`, região `sa-east-1`).

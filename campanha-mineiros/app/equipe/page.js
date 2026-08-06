@@ -122,7 +122,7 @@ export default function EquipePage() {
   const { coordenacao, chefes, lideres, apoiadores, cabos } = useMemo(() => {
     if (!data) return { coordenacao: [], chefes: [], lideres: [], apoiadores: [], cabos: [] };
     const f = (s) => !query || (s || "").toLowerCase().includes(query);
-    const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo));
+    const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || (l.tags || []).some((tag) => f(tag.nome)));
     return {
       coordenacao: pessoas.filter((person) => person.nivel === "coordenacao"),
       chefes: pessoas.filter((person) => person.nivel === "chefe_gabinete"),
@@ -142,7 +142,7 @@ export default function EquipePage() {
     <main className="wrap">
       <div className="eyebrow">Visão geral</div>
       <h1>Equipe da campanha</h1>
-      <p className="subtitle">Uma coordenação geral para toda a campanha, com lideranças e cabos organizados por município. Clique em cima do nome, cargo ou das etiquetas pra editar na hora.</p>
+      <p className="subtitle">Uma coordenação geral para toda a campanha, com lideranças e cabos organizados por município. Clique em cima do nome ou das etiquetas pra editar na hora.</p>
 
       <div className="stats">
         <div className="stat"><div className="num">{data.lideres.filter((person) => person.nivel === "coordenacao").length}</div><div className="lbl">Coordenação geral</div></div>
@@ -153,7 +153,7 @@ export default function EquipePage() {
       </div>
 
       <div className="toolbar">
-        <Input type="text" placeholder="Buscar por nome, município, liderança…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input type="text" placeholder="Buscar por nome, município, tag…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       <PersonGroup title="Coordenação da campanha" items={coordenacao} chefesPorCidade={chefesPorCidade} onQuickUpdate={quickUpdatePerson} onEdit={editPerson} onDelete={deletePerson} />
