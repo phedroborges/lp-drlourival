@@ -1,8 +1,7 @@
 import { getEstado } from "@/lib/db";
+import { protegida } from "@/lib/rota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return Response.json(getEstado());
-}
+export const GET = protegida(async () => Response.json(await getEstado()));

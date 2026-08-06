@@ -29,9 +29,13 @@ const chartConfig = { total: { label: "Investimento" } };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 
+// O Postgres devolve timestamptz em ISO; não precisa mais remendar o formato
+// "YYYY-MM-DD HH:MM:SS" que vinha do SQLite.
 function savedAt(value) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(`${value.replace(" ", "T")}Z`));
+  const data = new Date(value);
+  if (Number.isNaN(data.getTime())) return "";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(data);
 }
 
 function blankItem(template = {}) {

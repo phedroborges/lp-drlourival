@@ -3,7 +3,6 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import OrgChart from "./OrgChart";
 import PeopleView from "./PeopleView";
-import TerritoryBoard from "./TerritoryBoard";
 import RoutePlanner from "./RoutePlanner";
 import PersonModal from "./PersonModal";
 import CaboModal from "./CaboModal";
@@ -24,7 +23,6 @@ const TABS = [
   { id: "visao", label: "Visão geral" },
   { id: "operacao", label: "Operação" },
   { id: "pessoas", label: "Pessoas" },
-  { id: "territorios", label: "Territórios" },
   { id: "rotas", label: "Rotas no mapa" },
 ];
 
@@ -51,7 +49,7 @@ export default function CidadePage({ params }) {
   }, [code]);
   useEffect(() => { reload(); }, [reload]);
 
-  const bairros = useMemo(() => cidade?.grupos?.flatMap((group) => group.bairros) || [], [cidade]);
+  const cabosDaCidade = useMemo(() => cidade?.cabos || [], [cidade]);
   if (!cidade) {
     return (
       <main className="command-page city-command">
@@ -69,8 +67,8 @@ export default function CidadePage({ params }) {
   const chefes = cidade.lideres.filter((person) => person.nivel === "chefe_gabinete").length;
   const leaders = cidade.lideres.filter((person) => person.nivel === "lideranca").length;
   const supporters = cidade.lideres.filter((person) => person.nivel === "apoiador").length;
-  const cabos = bairros.flatMap((bairro) => bairro.cabos).length;
-  const activeTerritories = bairros.filter((bairro) => bairro.lideres.length || bairro.cabos.length).length;
+  const cabos = cabosDaCidade.length;
+  const cabosSemLideranca = cabosDaCidade.filter((cabo) => !cabo.lider_id).length;
 
   async function run(action) {
     try { setError(""); await action(); await reload(); }
@@ -93,7 +91,7 @@ export default function CidadePage({ params }) {
     await run(() => request("/api/lideres", "PATCH", { id: person.id, ...patch }));
   }
   async function saveCabo(form) {
-    await run(() => request("/api/cabos", caboModal?.cabo ? "PATCH" : "POST", caboModal?.cabo ? { id: caboModal.cabo.id, ...form } : form));
+    await run(() => request("/api/cabos", caboModal?.cabo ? "PATCH" : "POST", caboModal?.cabo ? { id: caboModal.cabo.id, ...form } : { municipio_codigo: code, ...form }));
     setCaboModal(null);
   }
   async function deleteCabo(cabo) {
@@ -111,7 +109,7 @@ export default function CidadePage({ params }) {
         </BreadcrumbList>
       </Breadcrumb>
       <header className="city-hero">
-        <div><span className="eyebrow">{cidade.sudoeste ? "Prioridade · Sudoeste Goiano" : "Operação municipal"}</span><h1>{cidade.nome}</h1><p>Coordenação geral da campanha, com lideranças, cabos, territórios e rotas próprios da cidade.</p></div>
+        <div><span className="eyebrow">{cidade.sudoeste ? "Prioridade · Sudoeste Goiano" : "Operação municipal"}</span><h1>{cidade.nome}</h1><p>Coordenação geral da campanha, com lideranças, cabos e rotas próprios da cidade.</p></div>
         <Button size="lg" onClick={() => openPerson()}>+ Adicionar pessoa</Button>
       </header>
       <section className="city-scoreboard">
@@ -120,14 +118,14 @@ export default function CidadePage({ params }) {
         <article><span>Lideranças</span><strong>{leaders}</strong><small>na estrutura</small></article>
         <article><span>Apoiadores</span><strong>{supporters}</strong><small>de apoio</small></article>
         <article><span>Cabos eleitorais</span><strong>{cabos}</strong><small>em campo</small></article>
-        <article><span>Cobertura</span><strong>{activeTerritories}<em>/{bairros.length}</em></strong><small>territórios ativos</small></article>
+        <article><span>Sem liderança</span><strong>{cabosSemLideranca}</strong><small>cabos a vincular</small></article>
       </section>
       <Tabs value={tab} onValueChange={setTab} className="city-tabs-shell">
         <TabsList aria-label="Seções da cidade" className="city-tabs">
           {TABS.map((item) => (
             <TabsTrigger key={item.id} value={item.id}>
               {item.label}
-              {item.id === "operacao" ? <span>{cidade.tarefas?.length || 0}</span> : item.id === "pessoas" ? <span>{cidade.lideres.length}</span> : item.id === "territorios" ? <span>{bairros.length}</span> : item.id === "rotas" ? <span>{cidade.rotas.length}</span> : null}
+              {item.id === "operacao" ? <span>{cidade.tarefas?.length || 0}</span> : item.id === "pessoas" ? <span>{cidade.lideres.length + cabos}</span> : item.id === "rotas" ? <span>{cidade.rotas.length}</span> : null}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -136,12 +134,11 @@ export default function CidadePage({ params }) {
       <section className="city-content">
         {tab === "visao" ? <><div className="section-toolbar"><div><span className="eyebrow">Organograma territorial</span><h2>Quem coordena quem — e onde</h2><p>A estrutura é montada pelos vínculos cadastrados, sem duplicar informações na tela.</p></div><Button variant="outline" onClick={() => setTab("pessoas")}>Gerenciar pessoas</Button></div><OrgChart cidade={cidade} onEdit={openPerson} onAdd={openPerson} onQuickUpdate={quickUpdatePerson} onDelete={deletePerson} /></> : null}
         {tab === "operacao" ? <OperationBoard cidade={cidade} onChanged={reload} onOpenRoutes={() => setTab("rotas")} /> : null}
-        {tab === "pessoas" ? <PeopleView cidade={cidade} onEdit={openPerson} onAdd={openPerson} onQuickUpdate={quickUpdatePerson} onDelete={deletePerson} /> : null}
-        {tab === "territorios" ? <TerritoryBoard cidade={cidade} onAddBairro={(name) => run(() => request("/api/bairros", "POST", { municipio_codigo: code, nome: name }))} onDeleteBairro={(bairro) => run(() => request("/api/bairros", "DELETE", { id: bairro.id }))} onCabo={(cabo, bairro) => setCaboModal({ cabo, bairro })} onAssign={(lider_id, bairro_id) => run(() => request("/api/assign", "POST", { lider_id, bairro_id }))} onUnassign={(lider_id, bairro_id) => run(() => request("/api/assign", "DELETE", { lider_id, bairro_id }))} /> : null}
+        {tab === "pessoas" ? <PeopleView cidade={cidade} onEdit={openPerson} onAdd={openPerson} onQuickUpdate={quickUpdatePerson} onDelete={deletePerson} onCabo={(cabo) => setCaboModal({ cabo })} /> : null}
         {tab === "rotas" ? <RoutePlanner cidade={cidade} onChanged={reload} /> : null}
       </section>
       {personModalOpen ? <PersonModal person={personModal} cidade={cidade} onClose={() => setPersonModalOpen(false)} onSave={savePerson} onDelete={deletePerson} /> : null}
-      {caboModal ? <CaboModal cabo={caboModal.cabo} bairro={caboModal.bairro} lideres={caboModal.bairro.lideres} onClose={() => setCaboModal(null)} onSave={saveCabo} onDelete={deleteCabo} /> : null}
+      {caboModal ? <CaboModal cabo={caboModal.cabo} cidade={cidade} onClose={() => setCaboModal(null)} onSave={saveCabo} onDelete={deleteCabo} /> : null}
     </main>
   );
 }

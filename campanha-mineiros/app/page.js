@@ -4,6 +4,6 @@ import EstadoView from "./EstadoView";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  return <EstadoView municipios={getEstado()} />;
+export default async function Home() {
+  return <EstadoView municipios={await getEstado()} />;
 }

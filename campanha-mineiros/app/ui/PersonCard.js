@@ -90,12 +90,6 @@ export default function PersonCard({ person, chefes = [], onQuickUpdate, onEdit,
             <dd>{superior.nome}</dd>
           </>
         ) : null}
-        {person.nivel !== "coordenacao" ? (
-          <>
-            <dt>Territórios</dt>
-            <dd>{person.bairro_ids?.length || 0} vinculados</dd>
-          </>
-        ) : null}
         {person.observacao ? (
           <>
             <dt>Próxima ação</dt>

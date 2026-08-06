@@ -14,15 +14,18 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
-export default function CaboModal({ cabo, bairro, lideres, onClose, onSave, onDelete }) {
-  const [form, setForm] = useState(cabo ? { ...cabo, lider_id: cabo.lider_id || "" } : { nome: "", contato: "", endereco: "", lider_id: "", bairro_id: bairro.id });
+export default function CaboModal({ cabo, cidade, onClose, onSave, onDelete }) {
+  // O cabo pendura na lideranca da cidade; quem coordena a campanha inteira
+  // nao aparece como responsavel de cabo.
+  const lideres = cidade.lideres.filter((lider) => !lider.escopo_global);
+  const [form, setForm] = useState(cabo ? { ...cabo, lider_id: cabo.lider_id || "" } : { nome: "", contato: "", endereco: "", lider_id: "" });
   const [confirmOpen, setConfirmOpen] = useState(false);
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
   async function submit(event) {
     event.preventDefault();
     if (!form.nome.trim()) return;
-    await onSave({ ...form, lider_id: form.lider_id ? Number(form.lider_id) : null, bairro_id: bairro.id });
+    await onSave({ ...form, lider_id: form.lider_id ? Number(form.lider_id) : null });
   }
 
   return (
@@ -30,7 +33,7 @@ export default function CaboModal({ cabo, bairro, lideres, onClose, onSave, onDe
       <SheetContent className="gap-0">
         <SheetHeader>
           <SheetTitle>{cabo ? "Editar cabo eleitoral" : "Adicionar cabo eleitoral"}</SheetTitle>
-          <SheetDescription>{bairro.nome}</SheetDescription>
+          <SheetDescription>{cidade.nome}</SheetDescription>
         </SheetHeader>
         <form className="form-stack flex-1 overflow-y-auto px-4" onSubmit={submit} id="cabo-form">
           <Label className="flex-col items-start gap-1">

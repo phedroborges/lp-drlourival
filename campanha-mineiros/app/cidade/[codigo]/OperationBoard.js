@@ -30,7 +30,7 @@ export default function OperationBoard({ cidade, onChanged, onOpenRoutes }) {
 
   async function shareTask(task) {
     const url = `${window.location.origin}/campo/${task.token}`;
-    const text = `${task.rota_nome} · ${task.bairro_nome || cidade.nome} · ${dateLabel(task.data)}`;
+    const text = `${task.rota_nome} · ${cidade.nome} · ${dateLabel(task.data)}`;
     try {
       if (navigator.share) await navigator.share({ title: "Plano de campo", text, url });
       else await navigator.clipboard.writeText(url);
@@ -73,7 +73,7 @@ export default function OperationBoard({ cidade, onChanged, onOpenRoutes }) {
     return (
       <article className="operation-card">
         <div className="operation-card-top"><span className={`operation-status ${tone}`}><i />{label}</span><span className="operation-date">{dateLabel(task.data)} · {task.turno}</span></div>
-        <div className="operation-title"><div className="operation-route-icon">⌖</div><div><span>{task.bairro_nome || "Área geral"}</span><h3>{task.rota_nome}</h3></div></div>
+        <div className="operation-title"><div className="operation-route-icon">⌖</div><div><span>{task.rota_nome ? "Rota programada" : "Área geral"}</span><h3>{task.rota_nome}</h3></div></div>
         <div className="operation-leader"><span>{task.lider_nome?.slice(0, 2).toUpperCase() || "L"}</span><p><small>Liderança responsável</small><strong>{task.lider_nome || "Responsável não definido"}</strong></p>{task.lider_contato ? <em>{task.lider_contato}</em> : null}</div>
         <div className="operation-progress"><div><span style={{ width: `${progress}%` }} /></div><strong>{task.registrados}/{task.cabos.length}</strong><small>conferidos</small></div>
         <div className="operation-team">{task.cabos.map((cabo) => <span key={cabo.cabo_id} className={cabo.status}><i>{cabo.nome.slice(0, 2).toUpperCase()}</i>{cabo.nome}</span>)}</div>
@@ -103,7 +103,7 @@ export default function OperationBoard({ cidade, onChanged, onOpenRoutes }) {
       <section className="operation-kpis"><article><span>Planos ativos</span><strong>{active.length}</strong><small>programados para a equipe</small></article><article><span>Retornos confirmados</span><strong>{tarefas.reduce((total, task) => total + task.retornos, 0)}</strong><small>registrados no comitê</small></article><article><span>Aguardando retorno</span><strong>{tarefas.reduce((total, task) => total + Math.max(0, task.cabos.length - task.registrados), 0)}</strong><small>cabos ainda sem conferência</small></article><article><span>Planos conferidos</span><strong>{completed.length}</strong><small>equipes totalmente registradas</small></article></section>
       {notice ? <div className="operation-notice">{notice}<button onClick={() => setNotice("")}>×</button></div> : null}
       <div className="operation-section-title"><div><h3>Planejamentos ativos</h3><p>O link é somente para consulta. A conferência fica com a coordenação.</p></div><span>{active.length}</span></div>
-      {active.length ? <div className="operation-grid">{active.map((task) => <TaskCard key={task.id} task={task} />)}</div> : <div className="operation-empty"><span>⌖</span><h3>Nenhum plano de campo ativo</h3><p>Finalize uma rota, escolha a liderança e escale os cabos do bairro.</p><button className="secondary-button" onClick={onOpenRoutes}>Ir para rotas</button></div>}
+      {active.length ? <div className="operation-grid">{active.map((task) => <TaskCard key={task.id} task={task} />)}</div> : <div className="operation-empty"><span>⌖</span><h3>Nenhum plano de campo ativo</h3><p>Finalize uma rota, escolha a liderança e escale os cabos da cidade.</p><button className="secondary-button" onClick={onOpenRoutes}>Ir para rotas</button></div>}
       {completed.length ? <><div className="operation-section-title history"><div><h3>Planos conferidos</h3><p>Equipes com todos os retornos ou ausências registrados.</p></div><span>{completed.length}</span></div><div className="operation-grid history-grid">{completed.map((task) => <TaskCard key={task.id} task={task} />)}</div></> : null}
     </div>
   );

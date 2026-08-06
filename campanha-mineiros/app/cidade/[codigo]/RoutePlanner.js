@@ -35,7 +35,6 @@ function totalDistance(points) {
 }
 
 export default function RoutePlanner({ cidade, onChanged }) {
-  const bairros = cidade.grupos.flatMap((group) => group.bairros);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   const mapNode = useRef(null);
   const leaflet = useRef(null);
@@ -48,7 +47,6 @@ export default function RoutePlanner({ cidade, onChanged }) {
   const lastFittedRoute = useRef(null);
   const [activeId, setActiveId] = useState(cidade.rotas[0]?.id || null);
   const [name, setName] = useState("");
-  const [bairroId, setBairroId] = useState("");
   const [notice, setNotice] = useState("");
   const [drawMode, setDrawMode] = useState("idle");
   const [shareNotice, setShareNotice] = useState("");
@@ -60,9 +58,9 @@ export default function RoutePlanner({ cidade, onChanged }) {
   const [confirmRemoveRouteOpen, setConfirmRemoveRouteOpen] = useState(false);
   const active = cidade.rotas.find((route) => route.id === activeId) || null;
   const finalized = active?.status === "finalizada";
-  const activeBairro = bairros.find((bairro) => bairro.id === active?.bairro_id) || null;
-  const eligibleCabos = activeBairro?.cabos || [];
-  const eligibleLeaders = cidade.lideres.filter((lider) => lider.nivel !== "coordenacao");
+  // Sem bairro, a equipe elegivel e a da cidade inteira.
+  const eligibleCabos = cidade.cabos || [];
+  const eligibleLeaders = cidade.lideres.filter((lider) => !lider.escopo_global);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -155,11 +153,10 @@ export default function RoutePlanner({ cidade, onChanged }) {
 
   async function createRoute(event) {
     event.preventDefault();
-    if (!name.trim() || !bairroId) { setNotice("Informe o nome e o bairro atendido pela rota."); return; }
+    if (!name.trim()) { setNotice("Informe o nome da rota."); return; }
     try {
-      const route = await routeRequest("POST", { municipio_codigo: cidade.codigo, nome: name, bairro_id: Number(bairroId) });
+      const route = await routeRequest("POST", { municipio_codigo: cidade.codigo, nome: name });
       setName("");
-      setBairroId("");
       setActiveId(route.id);
       setDrawMode("start");
       setNotice("Agora clique no mapa para marcar o ponto de partida.");
@@ -218,19 +215,11 @@ export default function RoutePlanner({ cidade, onChanged }) {
     setCreatedTask(null);
   }
 
-  async function updateRouteArea(value) {
-    if (!active) return;
-    await routeRequest("PATCH", { id: active.id, bairro_id: Number(value) });
-    setTaskOpen(false);
-    setCreatedTask(null);
-    await onChanged();
-  }
-
   function openTaskForm() {
-    if (!activeBairro) { setNotice("Escolha primeiro o bairro atendido por esta rota."); return; }
+    if (!eligibleCabos.length) { setNotice("Cadastre cabos eleitorais nesta cidade antes de montar o plano."); return; }
     setSelectedCabos(eligibleCabos.map((cabo) => cabo.id));
     const teamLeaderIds = [...new Set(eligibleCabos.map((cabo) => cabo.lider_id).filter(Boolean))];
-    const defaultLeader = teamLeaderIds.length === 1 ? teamLeaderIds[0] : activeBairro.lideres[0]?.id || "";
+    const defaultLeader = teamLeaderIds.length === 1 ? teamLeaderIds[0] : eligibleLeaders[0]?.id || "";
     setTaskForm({ lider_id: defaultLeader, data: today, turno: "Manhã", observacao: "" });
     setCreatedTask(null);
     setTaskOpen(true);
@@ -245,7 +234,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
     if (!taskForm.lider_id) { setNotice("Escolha a liderança responsável pela equipe."); return; }
     if (!selectedCabos.length) { setNotice("Selecione pelo menos um cabo responsável."); return; }
     try {
-      const response = await fetch("/api/tarefas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rota_id: active.id, bairro_id: active.bairro_id, lider_id: Number(taskForm.lider_id), data: taskForm.data, turno: taskForm.turno, observacao: taskForm.observacao, cabo_ids: selectedCabos }) });
+      const response = await fetch("/api/tarefas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rota_id: active.id, lider_id: Number(taskForm.lider_id), data: taskForm.data, turno: taskForm.turno, observacao: taskForm.observacao, cabo_ids: selectedCabos }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Não foi possível criar o planejamento");
       setCreatedTask(result);
@@ -281,15 +270,6 @@ export default function RoutePlanner({ cidade, onChanged }) {
         <div><span className="eyebrow">Editor visual</span><h2>Desenho de rotas · {cidade.nome}</h2><p>Crie a rota como em um canvas: cada clique adiciona um ponto e uma linha reta liga o percurso.</p></div>
         <form className="inline-create route-create" onSubmit={createRoute}>
           <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome da nova rota" />
-          <Select value={bairroId || "nenhum"} onValueChange={(value) => setBairroId(value === "nenhum" ? "" : value)}>
-            <SelectTrigger aria-label="Bairro da rota" className="w-full">
-              <SelectValue>{(value) => (value === "nenhum" ? "Escolha o bairro" : (bairros.find((bairro) => String(bairro.id) === value)?.nome ?? "Escolha o bairro"))}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="nenhum">Escolha o bairro</SelectItem>
-              {bairros.map((bairro) => <SelectItem key={bairro.id} value={String(bairro.id)}>{bairro.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
           <Button type="submit">+ Criar rota</Button>
         </form>
       </div>
@@ -307,17 +287,6 @@ export default function RoutePlanner({ cidade, onChanged }) {
             </Select>
           </label>
           {active ? <>
-            <label className="route-area-select"><span>Território atendido</span>
-              <Select value={active.bairro_id ? String(active.bairro_id) : "nenhum"} onValueChange={(value) => updateRouteArea(value === "nenhum" ? "" : value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(value) => (value === "nenhum" ? "Escolha o bairro" : (bairros.find((bairro) => String(bairro.id) === value)?.nome ?? "Escolha o bairro"))}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Escolha o bairro</SelectItem>
-                  {bairros.map((bairro) => <SelectItem key={bairro.id} value={String(bairro.id)}>{bairro.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </label>
             <div className="route-status-row"><span className={`route-status ${finalized ? "finished" : "draft"}`}><i />{finalized ? "Finalizada" : "Em desenho"}</span><span>{active.pontos.length} pontos</span></div>
             <div className="route-stats"><div><strong>{distance}</strong><span>linha total</span></div><div><strong>{Math.max(0, active.pontos.length - 1)}</strong><span>segmentos</span></div><div><strong>{finalized ? "Sim" : "Não"}</strong><span>chegada</span></div></div>
 
@@ -333,7 +302,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
 
             {finalized ? <button className="field-task-trigger" onClick={openTaskForm}><span>✓</span><p><strong>Transformar em plano de campo</strong><small>Definir data, cabos e gerar link</small></p><i>→</i></button> : null}
             {taskOpen ? <form className="field-task-form" onSubmit={createFieldTask}>
-              <div className="field-task-head"><div><span className="eyebrow">Novo plano de campo</span><h3>{active.nome}</h3><p>{activeBairro?.nome}</p></div><button type="button" onClick={() => setTaskOpen(false)}>×</button></div>
+              <div className="field-task-head"><div><span className="eyebrow">Novo plano de campo</span><h3>{active.nome}</h3><p>{cidade.nome}</p></div><button type="button" onClick={() => setTaskOpen(false)}>×</button></div>
               <label className="task-leader-select"><span>Liderança responsável</span>
                 <Select value={taskForm.lider_id ? String(taskForm.lider_id) : "nenhuma"} onValueChange={(value) => setTaskForm({ ...taskForm, lider_id: value === "nenhuma" ? "" : value })}>
                   <SelectTrigger className="w-full">
@@ -342,7 +311,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
                         if (value === "nenhuma") return "Escolha quem responde pela equipe";
                         const lider = eligibleLeaders.find((item) => String(item.id) === value);
                         if (!lider) return "Escolha quem responde pela equipe";
-                        return `${lider.nome}${activeBairro?.lideres.some((item) => item.id === lider.id) ? " · atua neste bairro" : ""}`;
+                        return lider.nome;
                       }}
                     </SelectValue>
                   </SelectTrigger>
@@ -350,7 +319,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
                     <SelectItem value="nenhuma">Escolha quem responde pela equipe</SelectItem>
                     {eligibleLeaders.map((lider) => (
                       <SelectItem key={lider.id} value={String(lider.id)}>
-                        {lider.nome}{activeBairro?.lideres.some((item) => item.id === lider.id) ? " · atua neste bairro" : ""}
+                        {lider.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -371,7 +340,7 @@ export default function RoutePlanner({ cidade, onChanged }) {
                   </Select>
                 </label>
               </div>
-              <div className="task-team-picker"><div><strong>Cabos escalados</strong><small>Equipe cadastrada em {activeBairro?.nome}</small></div>{eligibleCabos.length ? eligibleCabos.map((cabo) => <label key={cabo.id}><input type="checkbox" checked={selectedCabos.includes(cabo.id)} onChange={() => toggleCabo(cabo.id)} /><span>{cabo.nome.slice(0, 2).toUpperCase()}</span><p><strong>{cabo.nome}</strong><small>{cidade.lideres.find((lider) => lider.id === cabo.lider_id)?.nome ? `Equipe de ${cidade.lideres.find((lider) => lider.id === cabo.lider_id).nome}` : cabo.contato || "Sem liderança vinculada"}</small></p><i>✓</i></label>) : <p className="task-no-team">Este bairro ainda não possui cabos cadastrados.</p>}</div>
+              <div className="task-team-picker"><div><strong>Cabos escalados</strong><small>Equipe cadastrada em {cidade.nome}</small></div>{eligibleCabos.length ? eligibleCabos.map((cabo) => <label key={cabo.id}><input type="checkbox" checked={selectedCabos.includes(cabo.id)} onChange={() => toggleCabo(cabo.id)} /><span>{cabo.nome.slice(0, 2).toUpperCase()}</span><p><strong>{cabo.nome}</strong><small>{cidade.lideres.find((lider) => lider.id === cabo.lider_id)?.nome ? `Equipe de ${cidade.lideres.find((lider) => lider.id === cabo.lider_id).nome}` : cabo.contato || "Sem liderança vinculada"}</small></p><i>✓</i></label>) : <p className="task-no-team">Esta cidade ainda não possui cabos cadastrados.</p>}</div>
               <label className="task-instructions"><span>Orientações para a equipe</span><textarea value={taskForm.observacao} onChange={(event) => setTaskForm({ ...taskForm, observacao: event.target.value })} placeholder="Ex.: levar material e cobrir todas as ruas indicadas no mapa." rows="3" /></label>
               <button className="primary-button task-submit" disabled={!eligibleCabos.length || !eligibleLeaders.length}>Criar plano e gerar link</button>
             </form> : null}

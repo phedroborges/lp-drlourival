@@ -26,11 +26,12 @@ function CityRow({ city, onPreview }) {
 
 function CityPreview({ city }) {
   if (!city) return null;
-  const coverage = city.nBairros ? Math.round((city.nBairrosAtivos / city.nBairros) * 100) : 0;
+  const comLeitura = city.nVerde + city.nAmarelo + city.nVermelho;
+  const coverage = city.nLideres ? Math.round((comLeitura / city.nLideres) * 100) : 0;
   return <Card className="city-preview-card">
     <div className="card-heading"><div><span className="card-kicker">Município selecionado</span><h3>{city.nome}</h3></div>{city.sudoeste ? <span className="soft-badge">Sudoeste</span> : null}</div>
     <div className="preview-stat-row"><div><strong>{city.nCoordenadores}</strong><span>Coordenação geral</span></div><div><strong>{city.nLideres}</strong><span>Lideranças locais</span></div><div><strong>{city.nCabos}</strong><span>Cabos locais</span></div></div>
-    <div className="coverage-block"><div><span>Cobertura territorial</span><strong>{coverage}%</strong></div><div className="progress-track"><i style={{ width: `${coverage}%` }} /></div><small>{city.nBairrosAtivos} de {city.nBairros} territórios ativos</small></div>
+    <div className="coverage-block"><div><span>Leitura política</span><strong>{coverage}%</strong></div><div className="progress-track"><i style={{ width: `${coverage}%` }} /></div><small>{comLeitura} de {city.nLideres} lideranças classificadas</small></div>
     <div className="temperature-legend compact"><span><i className="green" />{city.nVerde} apoio</span><span><i className="yellow" />{city.nAmarelo} aproximação</span><span><i className="red" />{city.nVermelho} resistência</span></div>
     <Link className="card-link" href={`/cidade/${city.codigo}`}>Abrir central municipal <span>→</span></Link>
   </Card>;
@@ -71,7 +72,7 @@ export default function EstadoView({ municipios }) {
   const [preview, setPreview] = useState(mineiros || null);
   const handlePreview = useCallback((city) => city && setPreview(city), []);
   const normalized = query.trim().toLocaleLowerCase("pt-BR");
-  const totals = municipios.reduce((acc, city) => ({ lideres: acc.lideres + city.nLideres, cabos: acc.cabos + city.nCabos, cidades: acc.cidades + (city.total > 0 ? 1 : 0), territorios: acc.territorios + city.nBairrosAtivos }), { lideres: 0, cabos: 0, cidades: 0, territorios: 0 });
+  const totals = municipios.reduce((acc, city) => ({ lideres: acc.lideres + city.nLideres, cabos: acc.cabos + city.nCabos, cidades: acc.cidades + (city.total > 0 ? 1 : 0), comLeitura: acc.comLeitura + city.nVerde + city.nAmarelo + city.nVermelho }), { lideres: 0, cabos: 0, cidades: 0, comLeitura: 0 });
   const filtered = useMemo(() => municipios.filter((city) => !normalized || city.nome.toLocaleLowerCase("pt-BR").includes(normalized)), [municipios, normalized]);
   const southwest = filtered.filter((city) => city.sudoeste);
   const others = filtered.filter((city) => !city.sudoeste);
@@ -83,7 +84,7 @@ export default function EstadoView({ municipios }) {
       <Card className="kpi-card"><div className="kpi-icon blue">⌖</div><span>Municípios com equipe</span><strong>{totals.cidades}<small> / 246</small></strong><em className="trend positive">↑ em estruturação</em></Card>
       <Card className="kpi-card"><div className="kpi-icon violet">◉</div><span>Lideranças cadastradas</span><strong>{totals.lideres}</strong><em className="trend neutral">base estadual</em></Card>
       <Card className="kpi-card"><div className="kpi-icon orange">↗</div><span>Cabos eleitorais</span><strong>{totals.cabos}</strong><em className="trend neutral">em operação</em></Card>
-      <Card className="kpi-card"><div className="kpi-icon green">✓</div><span>Territórios ativos</span><strong>{totals.territorios}</strong><em className="trend positive">cobertura atual</em></Card>
+      <Card className="kpi-card"><div className="kpi-icon green">✓</div><span>Lideranças com leitura</span><strong>{totals.comLeitura}</strong><em className="trend positive">classificadas</em></Card>
     </section>
 
     <section className="dashboard-grid">

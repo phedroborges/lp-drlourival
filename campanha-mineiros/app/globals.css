@@ -838,3 +838,27 @@ h1,h2,h3,h4,.brand-placa,.stat .num,.kpi .num { font-style: normal; letter-spaci
   .print-only .map-tooltip { display: none !important; }
   @page { margin: 14mm; }
 }
+/* ---------- Login ---------- */
+.login-page { min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; background: var(--creme); }
+.login-card { width: min(100%, 380px); display: grid; gap: .85rem; padding: 1.8rem 1.6rem; border: 1px solid var(--ui-line, var(--brand-border)); border-radius: 14px; background: #fff; box-shadow: 0 20px 60px rgba(29,75,155,.12); }
+.login-brand { display: flex; align-items: center; gap: .6rem; }
+.login-brand > span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: var(--tinta); background: var(--amarelo); font-weight: 800; }
+.login-brand strong, .login-brand small { display: block; line-height: 1.25; }
+.login-brand small { color: var(--brand-muted); font-size: .68rem; }
+.login-card h1 { margin: .4rem 0 0; color: var(--ui-text, var(--tinta)); font-size: 1.3rem; font-weight: 650; }
+.login-card > .hint { margin: 0; }
+.login-field { display: grid; gap: .3rem; }
+.login-erro { margin: 0; padding: .5rem .65rem; border-radius: 8px; color: #8c2114; background: var(--vermelho-soft); font-size: .75rem; }
+.login-submit { width: 100%; margin-top: .2rem; }
+.login-rodape { margin: .2rem 0 0; text-align: center; }
+
+/* ---------- Sessão na topbar ---------- */
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.topbar-user { color: var(--ui-muted, var(--brand-muted)); font-size: 10px; }
+.topbar-sair { padding: .25rem .7rem; font-size: 10px; }
+
+/* ---------- Cabos na aba Pessoas ---------- */
+.cabo-card { display: grid; gap: .15rem; padding: .8rem .9rem; text-align: left; border: 1px solid var(--ui-line, var(--brand-border)); border-radius: 10px; background: #fff; box-shadow: var(--shadow); }
+.cabo-card strong { color: var(--ui-text, var(--tinta)); font-size: .82rem; }
+.cabo-card small { color: var(--brand-muted); font-size: .66rem; }
+.cabo-card span { color: var(--azul); font-size: .66rem; }

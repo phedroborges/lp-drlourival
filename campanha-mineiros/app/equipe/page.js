@@ -36,7 +36,6 @@ function CaboRow({ cabo }) {
         </div>
       </div>
       <dl>
-        <dt>Bairro</dt><dd>{cabo.bairro_nome}</dd>
         <dt>Cidade</dt><dd><Link href={`/cidade/${cabo.municipio_codigo}`}>{cabo.municipio_nome}</Link></dd>
         <dt>Líder</dt><dd>{cabo.lider_nome || "Sem líder"}</dd>
       </dl>
@@ -123,13 +122,13 @@ export default function EquipePage() {
   const { coordenacao, chefes, lideres, apoiadores, cabos } = useMemo(() => {
     if (!data) return { coordenacao: [], chefes: [], lideres: [], apoiadores: [], cabos: [] };
     const f = (s) => !query || (s || "").toLowerCase().includes(query);
-    const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo) || f(l.bairros));
+    const pessoas = data.lideres.filter((l) => f(l.nome) || f(l.municipio_nome) || f(l.cargo));
     return {
       coordenacao: pessoas.filter((person) => person.nivel === "coordenacao"),
       chefes: pessoas.filter((person) => person.nivel === "chefe_gabinete"),
       lideres: pessoas.filter((person) => person.nivel === "lideranca"),
       apoiadores: pessoas.filter((person) => person.nivel === "apoiador"),
-      cabos: data.cabos.filter((c) => f(c.nome) || f(c.municipio_nome) || f(c.bairro_nome) || f(c.lider_nome)),
+      cabos: data.cabos.filter((c) => f(c.nome) || f(c.municipio_nome) || f(c.lider_nome)),
     };
   }, [data, query]);
 
@@ -154,7 +153,7 @@ export default function EquipePage() {
       </div>
 
       <div className="toolbar">
-        <Input type="text" placeholder="Buscar por nome, município, bairro…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input type="text" placeholder="Buscar por nome, município, liderança…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       <PersonGroup title="Coordenação da campanha" items={coordenacao} chefesPorCidade={chefesPorCidade} onQuickUpdate={quickUpdatePerson} onEdit={editPerson} onDelete={deletePerson} />

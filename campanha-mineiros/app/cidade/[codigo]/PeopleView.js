@@ -1,11 +1,13 @@
 import PersonCard from "@/app/ui/PersonCard";
 import { Button } from "@/components/ui/button";
 
-export default function PeopleView({ cidade, onEdit, onAdd, onQuickUpdate, onDelete }) {
+export default function PeopleView({ cidade, onEdit, onAdd, onQuickUpdate, onDelete, onCabo }) {
   const coordinators = cidade.lideres.filter((person) => person.nivel === "coordenacao");
   const chefes = cidade.lideres.filter((person) => person.nivel === "chefe_gabinete");
   const leaders = cidade.lideres.filter((person) => person.nivel === "lideranca");
   const supporters = cidade.lideres.filter((person) => person.nivel === "apoiador");
+  const cabos = cidade.cabos || [];
+  const nomeDaLideranca = (id) => cidade.lideres.find((pessoa) => pessoa.id === id)?.nome;
 
   const groups = [
     { title: "Coordenação da campanha", items: coordinators, global: true },
@@ -24,7 +26,10 @@ export default function PeopleView({ cidade, onEdit, onAdd, onQuickUpdate, onDel
             cima do nome, cargo, telefone ou das etiquetas do cartão pra editar na hora.
           </p>
         </div>
-        <Button onClick={() => onAdd()}>+ Adicionar pessoa</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => onCabo(null)}>+ Cabo eleitoral</Button>
+          <Button onClick={() => onAdd()}>+ Adicionar pessoa</Button>
+        </div>
       </div>
       {groups.map((group) => (
         <section key={group.title} className="people-group">
@@ -51,6 +56,23 @@ export default function PeopleView({ cidade, onEdit, onAdd, onQuickUpdate, onDel
           </div>
         </section>
       ))}
+      <section className="people-group">
+        <h3>Cabos eleitorais de {cidade.nome} <span>{cabos.length}</span></h3>
+        <div className="people-grid">
+          {cabos.map((cabo) => (
+            <button key={cabo.id} className="cabo-card" onClick={() => onCabo(cabo)}>
+              <strong>{cabo.nome}</strong>
+              <small>{nomeDaLideranca(cabo.lider_id) || "Sem liderança vinculada"}</small>
+              {cabo.contato ? <span>{cabo.contato}</span> : null}
+            </button>
+          ))}
+          {!cabos.length ? (
+            <button className="empty-person-card" onClick={() => onCabo(null)}>
+              + Adicionar cabo eleitoral
+            </button>
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 }

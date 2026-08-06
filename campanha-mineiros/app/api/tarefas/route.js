@@ -1,51 +1,35 @@
-import { createTarefa, deleteTarefa, getTarefaByToken, getTarefas, updateTarefaCabo } from "@/lib/db";
+import { createTarefa, deleteTarefa, getTarefas, updateTarefaCabo } from "@/lib/db";
+import { protegida } from "@/lib/rota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function errorResponse(error, status = 400) {
-  return Response.json({ error: error.message || "Não foi possível concluir a ação" }, { status });
-}
-
-export async function GET(request) {
-  const params = new URL(request.url).searchParams;
-  const token = params.get("token");
-  if (token) {
-    const tarefa = getTarefaByToken(token);
-    return tarefa ? Response.json(tarefa) : Response.json({ error: "Plano de campo não encontrado" }, { status: 404 });
-  }
-  const codigo = Number(params.get("codigo"));
+// Consulta por token vive em /api/campo/[token], que e a unica rota publica.
+export const GET = protegida(async (request) => {
+  const codigo = Number(new URL(request.url).searchParams.get("codigo"));
   if (!codigo) return Response.json({ error: "Código da cidade é obrigatório" }, { status: 400 });
-  return Response.json(getTarefas(codigo));
-}
+  return Response.json(await getTarefas(codigo));
+});
 
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    if (!body.rota_id || !body.lider_id || !body.data || !Array.isArray(body.cabo_ids) || !body.cabo_ids.length) {
-      return Response.json({ error: "Rota, liderança, data e pelo menos um cabo são obrigatórios" }, { status: 400 });
-    }
-    return Response.json(createTarefa(body), { status: 201 });
-  } catch (error) {
-    return errorResponse(error);
+export const POST = protegida(async (request) => {
+  const body = await request.json();
+  if (!body.rota_id || !body.lider_id || !body.data || !Array.isArray(body.cabo_ids) || !body.cabo_ids.length) {
+    return Response.json({ error: "Rota, liderança, data e pelo menos um cabo são obrigatórios" }, { status: 400 });
   }
-}
+  return Response.json(await createTarefa(body), { status: 201 });
+});
 
-export async function PATCH(request) {
-  try {
-    const body = await request.json();
-    if (!body.tarefa_id || !body.cabo_id || !body.status) {
-      return Response.json({ error: "Plano, cabo e status são obrigatórios" }, { status: 400 });
-    }
-    return Response.json(updateTarefaCabo(body));
-  } catch (error) {
-    return errorResponse(error);
+export const PATCH = protegida(async (request) => {
+  const body = await request.json();
+  if (!body.tarefa_id || !body.cabo_id || !body.status) {
+    return Response.json({ error: "Plano, cabo e status são obrigatórios" }, { status: 400 });
   }
-}
+  return Response.json(await updateTarefaCabo(body));
+});
 
-export async function DELETE(request) {
+export const DELETE = protegida(async (request) => {
   const body = await request.json();
   if (!body.id) return Response.json({ error: "ID obrigatório" }, { status: 400 });
-  deleteTarefa(body.id);
+  await deleteTarefa(body.id);
   return Response.json({ ok: true });
-}
+});

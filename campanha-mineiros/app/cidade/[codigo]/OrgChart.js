@@ -47,8 +47,7 @@ function CardMenu({ person, onEdit, onDelete }) {
   );
 }
 
-function LeaderCard({ leader, bairros, cabos, onEdit, onQuickUpdate, onDelete }) {
-  const territories = bairros.filter((bairro) => leader.bairro_ids?.includes(bairro.id));
+function LeaderCard({ leader, cabos, onEdit, onQuickUpdate, onDelete }) {
   const leaderCabos = cabos.filter((cabo) => cabo.lider_id === leader.id);
   return (
     <article className="org-leader-card">
@@ -71,20 +70,20 @@ function LeaderCard({ leader, bairros, cabos, onEdit, onQuickUpdate, onDelete })
           onSave={(value) => onQuickUpdate(leader, { classificacao: value })}
         />
       </div>
-      <div className="org-foot"><span>{territories.length} territórios</span><span>{leaderCabos.length} cabos</span></div>
-      {territories.length ? (
+      <div className="org-foot"><span>{leaderCabos.length} cabos</span></div>
+      {leaderCabos.length ? (
         <div className="territory-chips">
-          {territories.slice(0, 4).map((bairro) => <span key={bairro.id}>{bairro.nome}</span>)}
-          {territories.length > 4 ? <span>+{territories.length - 4}</span> : null}
+          {leaderCabos.slice(0, 4).map((cabo) => <span key={cabo.id}>{cabo.nome}</span>)}
+          {leaderCabos.length > 4 ? <span>+{leaderCabos.length - 4}</span> : null}
         </div>
       ) : (
-        <p className="attention-note">Defina os territórios desta liderança.</p>
+        <p className="attention-note">Vincule cabos eleitorais a esta liderança.</p>
       )}
     </article>
   );
 }
 
-function LeaderStack({ leaders, bairros, cabos, onEdit, onQuickUpdate, onDelete }) {
+function LeaderStack({ leaders, cabos, onEdit, onQuickUpdate, onDelete }) {
   const visible = leaders.slice(0, 4);
   const remaining = leaders.slice(4);
 
@@ -94,7 +93,6 @@ function LeaderStack({ leaders, bairros, cabos, onEdit, onQuickUpdate, onDelete 
         <LeaderCard
           key={leader.id}
           leader={leader}
-          bairros={bairros}
           cabos={cabos}
           onEdit={onEdit}
           onQuickUpdate={onQuickUpdate}
@@ -111,8 +109,7 @@ function LeaderStack({ leaders, bairros, cabos, onEdit, onQuickUpdate, onDelete 
                   <LeaderCard
                     key={leader.id}
                     leader={leader}
-                    bairros={bairros}
-                    cabos={cabos}
+                              cabos={cabos}
                     onEdit={onEdit}
                     onQuickUpdate={onQuickUpdate}
                     onDelete={onDelete}
@@ -127,9 +124,8 @@ function LeaderStack({ leaders, bairros, cabos, onEdit, onQuickUpdate, onDelete 
   );
 }
 
-function ChefeBranch({ chefe, leaders, bairros, cabos, onEdit, onAdd, onQuickUpdate, onDelete }) {
+function ChefeBranch({ chefe, leaders, cabos, onEdit, onAdd, onQuickUpdate, onDelete }) {
   const team = leaders.filter((leader) => leader.responsavel_id === chefe.id);
-  const territorios = team.reduce((sum, leader) => sum + (leader.bairro_ids?.length || 0), 0);
   const totalCabos = team.reduce((sum, leader) => sum + cabos.filter((cabo) => cabo.lider_id === leader.id).length, 0);
   return (
     <section className="chefe-branch">
@@ -154,7 +150,6 @@ function ChefeBranch({ chefe, leaders, bairros, cabos, onEdit, onAdd, onQuickUpd
         />
         <div className="coord-summary">
           <span>{team.length} lideranças</span>
-          <span>{territorios} territórios</span>
           <span>{totalCabos} cabos</span>
         </div>
       </article>
@@ -162,7 +157,6 @@ function ChefeBranch({ chefe, leaders, bairros, cabos, onEdit, onAdd, onQuickUpd
       {team.length ? (
         <LeaderStack
           leaders={team}
-          bairros={bairros}
           cabos={cabos}
           onEdit={onEdit}
           onQuickUpdate={onQuickUpdate}
@@ -199,8 +193,7 @@ function CoordinatorCard({ coordinator, onEdit, onQuickUpdate, onDelete }) {
 }
 
 export default function OrgChart({ cidade, onEdit, onAdd, onQuickUpdate, onDelete }) {
-  const bairros = cidade.grupos.flatMap((grupo) => grupo.bairros);
-  const cabos = bairros.flatMap((bairro) => bairro.cabos);
+  const cabos = cidade.cabos || [];
   const coordinators = cidade.lideres.filter((item) => item.nivel === "coordenacao");
   const chefes = cidade.lideres.filter((item) => item.nivel === "chefe_gabinete");
   const leaders = cidade.lideres.filter((item) => item.nivel === "lideranca");
@@ -260,8 +253,7 @@ export default function OrgChart({ cidade, onEdit, onAdd, onQuickUpdate, onDelet
               key={chefe.id}
               chefe={chefe}
               leaders={leaders}
-              bairros={bairros}
-              cabos={cabos}
+                  cabos={cabos}
               onEdit={onEdit}
               onAdd={onAdd}
               onQuickUpdate={onQuickUpdate}
@@ -281,8 +273,7 @@ export default function OrgChart({ cidade, onEdit, onAdd, onQuickUpdate, onDelet
           <div className="branch-line" />
           <LeaderStack
             leaders={direct}
-            bairros={bairros}
-            cabos={cabos}
+              cabos={cabos}
             onEdit={onEdit}
             onQuickUpdate={onQuickUpdate}
             onDelete={onDelete}

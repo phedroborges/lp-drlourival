@@ -1,6 +1,7 @@
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import AppFrame from "./AppFrame";
+import { getUsuario } from "@/lib/supabaseServer";
 import { Kanit } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,12 +18,13 @@ export const metadata = {
   description: "Coordenação territorial, lideranças, cabos e rotas da campanha em Goiás",
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const usuario = await getUsuario();
   return (
     <html lang="pt-BR" className={kanit.variable}>
       <body suppressHydrationWarning>
         <TooltipProvider delayDuration={200}>
-          <AppFrame>{children}</AppFrame>
+          <AppFrame email={usuario?.email ?? null}>{children}</AppFrame>
           <Toaster position="bottom-right" />
         </TooltipProvider>
       </body>

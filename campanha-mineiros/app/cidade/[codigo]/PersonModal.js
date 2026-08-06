@@ -15,22 +15,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
-const EMPTY = { nome: "", nivel: "lideranca", cargo: "", contato: "", classificacao: "", responsavel_id: "", observacao: "", endereco: "", bairro_ids: [] };
+const EMPTY = { nome: "", nivel: "lideranca", cargo: "", contato: "", classificacao: "", responsavel_id: "", observacao: "", endereco: "" };
 
 export default function PersonModal({ person, cidade, onClose, onSave, onDelete }) {
   const [form, setForm] = useState(person ? {
     ...EMPTY, ...person,
     responsavel_id: person.responsavel_id || "",
-    bairro_ids: person.bairro_ids || [],
   } : EMPTY);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const chefes = useMemo(() => cidade.lideres.filter((item) => item.nivel === "chefe_gabinete" && item.id !== person?.id), [cidade, person]);
-  const bairros = cidade.grupos.flatMap((grupo) => grupo.bairros);
 
   function update(field, value) { setForm((current) => ({ ...current, [field]: value })); }
-  function toggleBairro(id) {
-    update("bairro_ids", form.bairro_ids.includes(id) ? form.bairro_ids.filter((item) => item !== id) : [...form.bairro_ids, id]);
-  }
   async function submit(event) {
     event.preventDefault();
     if (!form.nome.trim()) return;
@@ -49,7 +44,7 @@ export default function PersonModal({ person, cidade, onClose, onSave, onDelete 
         </SheetHeader>
         <form className="form-stack flex-1 overflow-y-auto px-4" onSubmit={submit} id="person-form">
           <div className="segmented-control" role="group" aria-label="Papel na estrutura">
-            <button type="button" className={form.nivel === "coordenacao" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "coordenacao", responsavel_id: "", bairro_ids: [] }))}>Coordenação da campanha</button>
+            <button type="button" className={form.nivel === "coordenacao" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "coordenacao", responsavel_id: "" }))}>Coordenação da campanha</button>
             <button type="button" className={form.nivel === "chefe_gabinete" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "chefe_gabinete", responsavel_id: "" }))}>Chefe de gabinete</button>
             <button type="button" className={form.nivel === "lideranca" ? "active" : ""} onClick={() => update("nivel", "lideranca")}>Liderança</button>
             <button type="button" className={form.nivel === "apoiador" ? "active" : ""} onClick={() => setForm((current) => ({ ...current, nivel: "apoiador", responsavel_id: "" }))}>Apoiador</button>
@@ -116,13 +111,6 @@ export default function PersonModal({ person, cidade, onClose, onSave, onDelete 
               <Input value={form.endereco} onChange={(e) => update("endereco", e.target.value)} placeholder="Rua, número ou ponto de apoio" />
             </Label>
           </div>
-          {form.nivel !== "coordenacao" ? (
-            <fieldset className="territory-picker">
-              <legend>Territórios de atuação</legend>
-              <p>Escolha um ou mais bairros/setores. Isso monta automaticamente o organograma.</p>
-              <div>{bairros.map((bairro) => <label key={bairro.id} className={form.bairro_ids.includes(bairro.id) ? "selected" : ""}><input type="checkbox" checked={form.bairro_ids.includes(bairro.id)} onChange={() => toggleBairro(bairro.id)} /><span>{bairro.nome}</span></label>)}</div>
-            </fieldset>
-          ) : null}
           <Label className="flex-col items-start gap-1">
             Notas estratégicas
             <Textarea rows="3" value={form.observacao} onChange={(e) => update("observacao", e.target.value)} placeholder="Contexto, combinados e próximo contato" />

@@ -1,432 +1,218 @@
-// Banco de dados local SQLite (driver nativo do Node 24: node:sqlite).
-// Roda SOMENTE no servidor.
-import { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { MUNICIPIOS, MINEIROS_CODIGO } from "./municipiosSeed.js";
+// Acesso ao banco da campanha (Postgres no Supabase).
+// Roda SOMENTE no servidor: usa a secret key, que ignora RLS.
+//
+// Estrutura: municipio -> lider (candidato / coordenacao / chefe_gabinete /
+// lideranca) -> cabo. Nao existe bairro; o territorio e a propria cidade.
+import { admin, ok } from "./supabaseAdmin.js";
 
-const DB_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DB_DIR, "campanha.db");
+// Ordem em que a hierarquia aparece nas listas.
+const ORDEM_NIVEL = { candidato: 0, coordenacao: 1, chefe_gabinete: 2, lideranca: 3, apoiador: 4 };
 
-// Bairros/setores de Mineiros, agrupados.
-const BAIRROS_MINEIROS = [
-  ["Setores e Bairros Tradicionais", [
-    "Centro", "Aeroporto", "Cidade Nova", "Cruvinel", "Jardim Goiás II", "Machado",
-    "Marcelino Teodoro Gomes", "Martins", "Mundinho", "Nossa Senhora Aparecida",
-    "Nossa Senhora de Fátima", "Oeste", "Pecuária", "São Bento",
-  ]],
-  ["Residenciais e Loteamentos", [
-    "31 de Outubro", "Buena Vista", "Bairro Popular", "Divino Espírito Santo", "Cambauva",
-    "Jardim dos Ipês", "Martins II", "Residencial Araguaia", "Santa Isabel", "Mineirinho",
-    "Morada do Sol", "Parque dos Jatobás", "Portal das Emas", "Alvina Paniago", "Dona Letice",
-    "Jardim das Paineiras", "Jardim Floresta", "Parque Flamboyant", "Santa Maria",
-    "Versailles", "Vila Manoel Abrão",
-  ]],
-  ["Distritos", [
-    "DAIM (Distrito Agro Industrial de Mineiros)",
-  ]],
-];
+// Candidato e coordenacao respondem pela campanha inteira, nao por uma cidade.
+const NIVEIS_GLOBAIS = ["candidato", "coordenacao"];
 
-// Lideranças da reunião, pré-cadastradas em Mineiros (classificação = cor).
-const LIDERES_SEED = [
-  ["Kenedi", "Liderança política", "amarelo", ""],
-  ["Joselman", "Liderança política", "amarelo", "Em transição (amarelo → verde)"],
-  ["Derges", "Liderança política", "vermelho", ""],
-  ["Marta Brandão", "Liderança política", "verde", "Convidar para reunião"],
-  ["Maranhão", "Liderança política", "verde", "Convidar para reunião"],
-  ["Wglevison do agro", "Liderança do agro", "verde", "Convidar para reunião"],
-  ["Simone", "Liderança política", "verde", "Convidar para reunião"],
-  ["Welma", "Liderança política", "amarelo", "Convidar para reunião"],
-  ["Gilberto", "Liderança política", "", "Classificação a definir"],
-  ["Valdemar do IML", "Liderança política", "", "Classificação a definir"],
-  ["Major Souza", "Liderança política", "amarelo", ""],
-  ["Samuel Borracheiro", "Liderança política", "vermelho", ""],
-];
-
-function init() {
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  const db = new DatabaseSync(DB_PATH);
-  // O build do Next avalia rotas em paralelo. Aguarde um eventual lock curto
-  // enquanto outro worker termina a inicializacao/migracao do mesmo arquivo.
-  db.exec("PRAGMA busy_timeout = 10000;");
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec("PRAGMA foreign_keys = ON;");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS municipio (
-      codigo   INTEGER PRIMARY KEY,
-      nome     TEXT NOT NULL,
-      sudoeste INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS bairro (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      municipio_codigo INTEGER NOT NULL,
-      nome             TEXT NOT NULL,
-      grupo            TEXT NOT NULL DEFAULT 'Bairros',
-      ordem            INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (municipio_codigo) REFERENCES municipio(codigo) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS lider (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      municipio_codigo INTEGER NOT NULL,
-      nome             TEXT NOT NULL,
-      cargo            TEXT NOT NULL DEFAULT '',
-      contato          TEXT NOT NULL DEFAULT '',
-      classificacao    TEXT NOT NULL DEFAULT '',
-      observacao       TEXT NOT NULL DEFAULT '',
-      criado_em        TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (municipio_codigo) REFERENCES municipio(codigo) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS lider_bairro (
-      lider_id  INTEGER NOT NULL,
-      bairro_id INTEGER NOT NULL,
-      PRIMARY KEY (lider_id, bairro_id),
-      FOREIGN KEY (lider_id)  REFERENCES lider(id)  ON DELETE CASCADE,
-      FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS cabo (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      bairro_id INTEGER NOT NULL,
-      lider_id  INTEGER,
-      nome      TEXT NOT NULL,
-      contato   TEXT NOT NULL DEFAULT '',
-      FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE CASCADE,
-      FOREIGN KEY (lider_id)  REFERENCES lider(id)  ON DELETE SET NULL
-    );
-    CREATE TABLE IF NOT EXISTS estrategia (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      titulo     TEXT NOT NULL DEFAULT '',
-      texto      TEXT NOT NULL DEFAULT '',
-      categoria  TEXT NOT NULL DEFAULT 'Geral',
-      criado_em  TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS rota (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      municipio_codigo INTEGER NOT NULL,
-      nome             TEXT NOT NULL,
-      status           TEXT NOT NULL DEFAULT 'planejamento',
-      geometria        TEXT NOT NULL DEFAULT '',
-      distancia_m      REAL NOT NULL DEFAULT 0,
-      duracao_s        REAL NOT NULL DEFAULT 0,
-      criado_em        TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (municipio_codigo) REFERENCES municipio(codigo) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS rota_ponto (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      rota_id   INTEGER NOT NULL,
-      cabo_id   INTEGER,
-      bairro_id INTEGER,
-      label     TEXT NOT NULL DEFAULT '',
-      lat       REAL NOT NULL,
-      lng       REAL NOT NULL,
-      ordem     INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (rota_id) REFERENCES rota(id) ON DELETE CASCADE,
-      FOREIGN KEY (cabo_id) REFERENCES cabo(id) ON DELETE SET NULL,
-      FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE SET NULL
-    );
-    CREATE TABLE IF NOT EXISTS tarefa_rota (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      rota_id     INTEGER NOT NULL,
-      bairro_id   INTEGER,
-      lider_id    INTEGER,
-      data        TEXT NOT NULL,
-      turno       TEXT NOT NULL DEFAULT 'Manhã',
-      observacao  TEXT NOT NULL DEFAULT '',
-      token       TEXT NOT NULL UNIQUE,
-      status      TEXT NOT NULL DEFAULT 'planejada',
-      criado_em   TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (rota_id) REFERENCES rota(id) ON DELETE CASCADE,
-      FOREIGN KEY (bairro_id) REFERENCES bairro(id) ON DELETE SET NULL,
-      FOREIGN KEY (lider_id) REFERENCES lider(id) ON DELETE SET NULL
-    );
-    CREATE TABLE IF NOT EXISTS tarefa_rota_cabo (
-      tarefa_id    INTEGER NOT NULL,
-      cabo_id      INTEGER NOT NULL,
-      status       TEXT NOT NULL DEFAULT 'pendente',
-      iniciado_em  TEXT,
-      concluido_em TEXT,
-      observacao   TEXT NOT NULL DEFAULT '',
-      PRIMARY KEY (tarefa_id, cabo_id),
-      FOREIGN KEY (tarefa_id) REFERENCES tarefa_rota(id) ON DELETE CASCADE,
-      FOREIGN KEY (cabo_id) REFERENCES cabo(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS orcamento_config (
-      id                  INTEGER PRIMARY KEY CHECK (id = 1),
-      nome_cenario        TEXT NOT NULL DEFAULT 'Cenário base',
-      fundo_total         REAL NOT NULL DEFAULT 0,
-      reserva_percentual  REAL NOT NULL DEFAULT 5,
-      atualizado_em       TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS orcamento_item (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      categoria       TEXT NOT NULL DEFAULT 'Outros',
-      nome            TEXT NOT NULL,
-      vinculo         TEXT NOT NULL DEFAULT 'manual',
-      modo_quantidade TEXT NOT NULL DEFAULT 'simulacao',
-      quantidade      REAL NOT NULL DEFAULT 1,
-      periodos        REAL NOT NULL DEFAULT 1,
-      custo_unitario  REAL NOT NULL DEFAULT 0,
-      observacao      TEXT NOT NULL DEFAULT '',
-      ordem           INTEGER NOT NULL DEFAULT 0,
-      criado_em       TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  db.prepare("INSERT OR IGNORE INTO orcamento_config (id) VALUES (1)").run();
-
-  // Migrações incrementais para instalações que já possuem dados.
-  const ensureColumn = (table, column, definition) => {
-    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
-    if (!columns.some((item) => item.name === column)) {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-    }
-  };
-  ensureColumn("lider", "nivel", "TEXT NOT NULL DEFAULT 'lideranca'");
-  ensureColumn("lider", "responsavel_id", "INTEGER");
-  ensureColumn("lider", "endereco", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("lider", "lat", "REAL");
-  ensureColumn("lider", "lng", "REAL");
-  ensureColumn("bairro", "lat", "REAL");
-  ensureColumn("bairro", "lng", "REAL");
-  ensureColumn("cabo", "endereco", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("cabo", "lat", "REAL");
-  ensureColumn("cabo", "lng", "REAL");
-  ensureColumn("rota", "bairro_id", "INTEGER");
-  ensureColumn("tarefa_rota", "lider_id", "INTEGER");
-  ensureColumn("orcamento_item", "modo_quantidade", "TEXT NOT NULL DEFAULT 'automatico'");
-  db.prepare("UPDATE orcamento_item SET modo_quantidade = 'simulacao' WHERE vinculo = 'manual'").run();
-
-  // O plano publico e apenas informativo. Preservamos tarefas antigas,
-  // convertendo os estados de execucao em registros de retorno ao comite.
-  db.prepare("UPDATE tarefa_rota_cabo SET status = 'retorno' WHERE status = 'concluida'").run();
-  db.prepare("UPDATE tarefa_rota_cabo SET status = 'pendente' WHERE status = 'andamento'").run();
-  db.prepare(`UPDATE tarefa_rota
-    SET lider_id = (
-      SELECT c.lider_id
-      FROM tarefa_rota_cabo trc
-      JOIN cabo c ON c.id = trc.cabo_id
-      WHERE trc.tarefa_id = tarefa_rota.id AND c.lider_id IS NOT NULL
-      GROUP BY c.lider_id
-      ORDER BY COUNT(*) DESC
-      LIMIT 1
-    )
-    WHERE lider_id IS NULL`).run();
-
-  // Semear os 246 municípios (idempotente).
-  const insMun = db.prepare("INSERT OR IGNORE INTO municipio (codigo, nome, sudoeste) VALUES (?, ?, ?)");
-  for (const m of MUNICIPIOS) insMun.run(m.codigo, m.nome, m.sudoeste);
-
-  // Semear bairros de Mineiros (idempotente por nome dentro do município).
-  if (MINEIROS_CODIGO) {
-    const existe = db.prepare("SELECT COUNT(*) n FROM bairro WHERE municipio_codigo = ?").get(MINEIROS_CODIGO).n;
-    if (existe === 0) {
-      const insB = db.prepare("INSERT INTO bairro (municipio_codigo, nome, grupo, ordem) VALUES (?, ?, ?, ?)");
-      let ordem = 0;
-      for (const [grupo, nomes] of BAIRROS_MINEIROS) for (const nome of nomes) insB.run(MINEIROS_CODIGO, nome, grupo, ordem++);
-    }
-    // Semear lideranças da reunião (uma vez).
-    const nLid = db.prepare("SELECT COUNT(*) n FROM lider").get().n;
-    if (nLid === 0) {
-      const insL = db.prepare("INSERT INTO lider (municipio_codigo, nome, cargo, classificacao, observacao) VALUES (?, ?, ?, ?, ?)");
-      for (const [nome, cargo, cor, obs] of LIDERES_SEED) insL.run(MINEIROS_CODIGO, nome, cargo, cor, obs);
-    }
-    const pedro = db.prepare("SELECT id FROM lider WHERE municipio_codigo = ? AND nome = ?").get(MINEIROS_CODIGO, "Pedro Borges");
-    if (!pedro) {
-      db.prepare(`INSERT INTO lider
-        (municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(MINEIROS_CODIGO, "Pedro Borges", "Coordenação geral da campanha", "(64) 99999-0001", "verde", "Coordenação responsável por toda a campanha", "coordenacao");
-    }
-  }
-
-  // A coordenação é global. Atualiza apenas o texto original do registro
-  // sem sobrescrever alterações que já tenham sido feitas pelo usuário.
-  db.prepare(`UPDATE lider SET cargo = 'Coordenação geral da campanha'
-    WHERE nivel = 'coordenacao' AND cargo = 'Coordenação municipal'`).run();
-  db.prepare(`UPDATE lider SET observacao = 'Coordenação responsável por toda a campanha'
-    WHERE nivel = 'coordenacao' AND observacao = 'Coordenador responsável pela operação de Mineiros'`).run();
-
-  return db;
-}
-
-function getDb() {
-  if (!globalThis.__campanhaDb) globalThis.__campanhaDb = init();
-  return globalThis.__campanhaDb;
-}
-
-// Mantém a API interna existente, mas só abre o SQLite na primeira consulta.
-export const db = new Proxy({}, {
-  get(_target, property) {
-    const database = getDb();
-    const value = database[property];
-    return typeof value === "function" ? value.bind(database) : value;
-  },
-});
+const colacao = new Intl.Collator("pt-BR", { sensitivity: "base" });
+const porNome = (a, b) => colacao.compare(a.nome || "", b.nome || "");
 
 function tierOf(total) { return total === 0 ? 0 : total === 1 ? 1 : total <= 3 ? 2 : 3; }
 
+function ehGlobal(nivel) { return NIVEIS_GLOBAIS.includes(nivel); }
+
+// Monta o objeto de UPDATE apenas com os campos que vieram na requisicao.
+// Ausente = mantem; null = limpa. Substitui os COALESCE do SQLite.
+function patch(origem, campos) {
+  const saida = {};
+  for (const campo of campos) if (origem[campo] !== undefined) saida[campo] = origem[campo];
+  return saida;
+}
+
+function texto(valor) { return String(valor ?? "").trim(); }
+
 /* ------------------------- Estado (mapa) ------------------------- */
-export function getEstado() {
-  const rows = db.prepare(`
-    SELECT m.codigo, m.nome, m.sudoeste,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao') AS nLideres,
-      (SELECT COUNT(*) FROM lider l WHERE l.nivel = 'coordenacao') AS nCoordenadores,
-      (SELECT COUNT(*) FROM cabo c JOIN bairro b ON b.id = c.bairro_id WHERE b.municipio_codigo = m.codigo) AS nCabos,
-      (SELECT COUNT(*) FROM bairro b WHERE b.municipio_codigo = m.codigo) AS nBairros,
-      (SELECT COUNT(DISTINCT b.id) FROM bairro b
-        WHERE b.municipio_codigo = m.codigo AND (
-          EXISTS (SELECT 1 FROM lider_bairro lb WHERE lb.bairro_id = b.id)
-          OR EXISTS (SELECT 1 FROM cabo c WHERE c.bairro_id = b.id)
-        )) AS nBairrosAtivos,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = 'verde') AS nVerde,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = 'amarelo') AS nAmarelo,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = 'vermelho') AS nVermelho,
-      (SELECT COUNT(*) FROM lider l WHERE l.municipio_codigo = m.codigo AND l.nivel <> 'coordenacao' AND l.classificacao = '') AS nSem
-    FROM municipio m ORDER BY m.nome COLLATE NOCASE
-  `).all();
-  return rows.map((r) => ({ ...r, total: r.nLideres + r.nCabos, tier: tierOf(r.nLideres + r.nCabos) }));
+export async function getEstado() {
+  const linhas = ok(await admin.from("estado_resumo").select("*"));
+  return linhas
+    .sort(porNome)
+    .map((linha) => {
+      const total = linha.nLideres + linha.nCabos;
+      return { ...linha, total, tier: tierOf(total) };
+    });
 }
 
 /* ------------------------- Cidade ------------------------- */
-export function getMunicipio(codigo) {
-  const m = db.prepare("SELECT * FROM municipio WHERE codigo = ?").get(codigo);
-  if (!m) return null;
-  const lideres = db.prepare(`SELECT *, CASE WHEN nivel = 'coordenacao' THEN 1 ELSE 0 END AS escopo_global
-    FROM lider WHERE nivel = 'coordenacao' OR municipio_codigo = ?
-    ORDER BY CASE nivel WHEN 'coordenacao' THEN 0 WHEN 'chefe_gabinete' THEN 1 ELSE 2 END, nome COLLATE NOCASE`).all(codigo);
-  const bairros = db.prepare("SELECT * FROM bairro WHERE municipio_codigo = ? ORDER BY ordem, nome").all(codigo);
-  const bairrosPorLider = new Map();
-  const bid = new Map(bairros.map((b) => [b.id, { ...b, lideres: [], cabos: [] }]));
-  if (bairros.length) {
-    const ph = bairros.map(() => "?").join(",");
-    const ids = bairros.map((b) => b.id);
-    for (const row of db.prepare(
-      `SELECT lb.bairro_id, l.id, l.nome, l.cargo, l.contato, l.classificacao, l.nivel, l.responsavel_id
-         FROM lider_bairro lb JOIN lider l ON l.id = lb.lider_id
-        WHERE lb.bairro_id IN (${ph}) ORDER BY l.nome COLLATE NOCASE`
-    ).all(...ids)) {
-      bid.get(row.bairro_id)?.lideres.push({ id: row.id, nome: row.nome, cargo: row.cargo, contato: row.contato, classificacao: row.classificacao, nivel: row.nivel, responsavel_id: row.responsavel_id });
-      if (!bairrosPorLider.has(row.id)) bairrosPorLider.set(row.id, []);
-      bairrosPorLider.get(row.id).push(row.bairro_id);
-    }
-    for (const c of db.prepare(`SELECT * FROM cabo WHERE bairro_id IN (${ph}) ORDER BY id`).all(...ids)) {
-      bid.get(c.bairro_id)?.cabos.push(c);
-    }
-  }
-  // Agrupar bairros preservando ordem dos grupos.
-  const grupos = [];
-  for (const b of bid.values()) {
-    let g = grupos.find((x) => x.grupo === b.grupo);
-    if (!g) { g = { grupo: b.grupo, bairros: [] }; grupos.push(g); }
-    g.bairros.push(b);
-  }
-  const rotas = getRotas(codigo);
-  const tarefas = getTarefas(codigo);
-  return { ...m, lideres: lideres.map((lider) => ({ ...lider, bairro_ids: bairrosPorLider.get(lider.id) || [] })), grupos, rotas, tarefas };
+export async function getMunicipio(codigo) {
+  const municipio = ok(
+    await admin.from("municipio").select("*").eq("codigo", codigo).maybeSingle()
+  );
+  if (!municipio) return null;
+
+  const [lideres, cabos, rotas, tarefas] = await Promise.all([
+    admin.from("lider").select("*")
+      .or(`nivel.in.(${NIVEIS_GLOBAIS.join(",")}),municipio_codigo.eq.${codigo}`)
+      .then(ok),
+    admin.from("cabo").select("*").eq("municipio_codigo", codigo).then(ok),
+    getRotas(codigo),
+    getTarefas(codigo),
+  ]);
+
+  return {
+    ...municipio,
+    lideres: lideres
+      .map((lider) => ({ ...lider, escopo_global: ehGlobal(lider.nivel) ? 1 : 0 }))
+      .sort((a, b) => (ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]) || porNome(a, b)),
+    cabos: cabos.sort(porNome),
+    rotas,
+    tarefas,
+  };
 }
 
 /* ------------------------- Lideranças ------------------------- */
-export function createLider({ municipio_codigo, nome, cargo = "", contato = "", classificacao = "", observacao = "", nivel = "lideranca", responsavel_id = null, endereco = "", lat = null, lng = null, bairro_ids = [] }) {
-  const globalCoordinator = nivel === "coordenacao";
-  const r = db.prepare(
-    "INSERT INTO lider (municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-  ).run(municipio_codigo, String(nome).trim(), cargo, contato, classificacao, observacao, nivel, globalCoordinator ? null : (responsavel_id || null), endereco, lat, lng);
-  if (!globalCoordinator) for (const bairroId of bairro_ids || []) assignLider(Number(r.lastInsertRowid), Number(bairroId));
-  return db.prepare("SELECT * FROM lider WHERE id = ?").get(r.lastInsertRowid);
+export async function createLider(dados) {
+  const global = ehGlobal(dados.nivel);
+  const registro = {
+    municipio_codigo: dados.municipio_codigo,
+    nome: texto(dados.nome),
+    cargo: dados.cargo ?? "",
+    contato: dados.contato ?? "",
+    classificacao: dados.classificacao ?? "",
+    observacao: dados.observacao ?? "",
+    nivel: dados.nivel ?? "lideranca",
+    responsavel_id: global ? null : (dados.responsavel_id || null),
+    endereco: dados.endereco ?? "",
+    lat: dados.lat ?? null,
+    lng: dados.lng ?? null,
+  };
+  return ok(await admin.from("lider").insert(registro).select("*").single());
 }
-export function updateLider({ id, municipio_codigo, nome, cargo, contato, classificacao, observacao, nivel, responsavel_id, endereco, lat, lng, bairro_ids }) {
-  const atual = db.prepare("SELECT municipio_codigo, nivel, responsavel_id, lat, lng FROM lider WHERE id = ?").get(id);
-  const selectedLevel = nivel || atual?.nivel || "lideranca";
-  const globalCoordinator = selectedLevel === "coordenacao";
-  const selectedMunicipality = globalCoordinator ? atual?.municipio_codigo : (municipio_codigo ?? atual?.municipio_codigo);
-  db.prepare(
-    `UPDATE lider SET nome=COALESCE(?,nome), cargo=COALESCE(?,cargo), contato=COALESCE(?,contato),
-       classificacao=COALESCE(?,classificacao), observacao=COALESCE(?,observacao), nivel=COALESCE(?,nivel),
-       municipio_codigo=COALESCE(?,municipio_codigo), responsavel_id=?, endereco=COALESCE(?,endereco), lat=?, lng=? WHERE id=?`
-  ).run(nome ?? null, cargo ?? null, contato ?? null, classificacao ?? null, observacao ?? null, nivel ?? null,
-    selectedMunicipality ?? null, globalCoordinator ? null : (responsavel_id === undefined ? (atual?.responsavel_id ?? null) : (responsavel_id || null)), endereco ?? null,
-    lat === undefined ? (atual?.lat ?? null) : lat, lng === undefined ? (atual?.lng ?? null) : lng, id);
-  if (globalCoordinator) {
-    db.prepare("DELETE FROM lider_bairro WHERE lider_id = ?").run(id);
-  } else if (Array.isArray(bairro_ids)) {
-    db.prepare("DELETE FROM lider_bairro WHERE lider_id = ?").run(id);
-    for (const bairroId of bairro_ids) assignLider(id, Number(bairroId));
-  }
-  return db.prepare("SELECT * FROM lider WHERE id = ?").get(id);
-}
-export function deleteLider(id) { db.prepare("DELETE FROM lider WHERE id = ?").run(id); }
 
-/* ------------------------- Bairros ------------------------- */
-export function createBairro({ municipio_codigo, nome, grupo = "Bairros" }) {
-  const ordem = db.prepare("SELECT COALESCE(MAX(ordem), -1) + 1 AS o FROM bairro WHERE municipio_codigo = ?").get(municipio_codigo).o;
-  const r = db.prepare("INSERT INTO bairro (municipio_codigo, nome, grupo, ordem) VALUES (?, ?, ?, ?)")
-    .run(municipio_codigo, String(nome).trim(), grupo, ordem);
-  return db.prepare("SELECT * FROM bairro WHERE id = ?").get(r.lastInsertRowid);
-}
-export function deleteBairro(id) { db.prepare("DELETE FROM bairro WHERE id = ?").run(id); }
+export async function updateLider(dados) {
+  const atual = ok(
+    await admin.from("lider").select("nivel, municipio_codigo, responsavel_id")
+      .eq("id", dados.id).maybeSingle()
+  );
+  if (!atual) throw new Error("Liderança não encontrada");
 
-export function assignLider(lider_id, bairro_id) {
-  db.prepare("INSERT OR IGNORE INTO lider_bairro (lider_id, bairro_id) VALUES (?, ?)").run(lider_id, bairro_id);
+  const nivel = dados.nivel || atual.nivel;
+  const global = ehGlobal(nivel);
+  const alteracoes = patch(dados, [
+    "nome", "cargo", "contato", "classificacao", "observacao",
+    "endereco", "lat", "lng",
+  ]);
+  alteracoes.nivel = nivel;
+  // Quem responde pela campanha inteira nao troca de cidade nem tem chefe.
+  alteracoes.municipio_codigo = global
+    ? atual.municipio_codigo
+    : (dados.municipio_codigo ?? atual.municipio_codigo);
+  alteracoes.responsavel_id = global
+    ? null
+    : (dados.responsavel_id === undefined ? atual.responsavel_id : (dados.responsavel_id || null));
+  if (alteracoes.nome !== undefined) alteracoes.nome = texto(alteracoes.nome);
+
+  return ok(
+    await admin.from("lider").update(alteracoes).eq("id", dados.id).select("*").single()
+  );
 }
-export function unassignLider(lider_id, bairro_id) {
-  db.prepare("DELETE FROM lider_bairro WHERE lider_id = ? AND bairro_id = ?").run(lider_id, bairro_id);
-  db.prepare("UPDATE cabo SET lider_id = NULL WHERE bairro_id = ? AND lider_id = ?").run(bairro_id, lider_id);
+
+export async function deleteLider(id) {
+  ok(await admin.from("lider").delete().eq("id", id));
 }
 
 /* ------------------------- Cabos ------------------------- */
-export function createCabo({ nome, contato = "", bairro_id, lider_id = null, endereco = "", lat = null, lng = null }) {
-  const r = db.prepare("INSERT INTO cabo (bairro_id, lider_id, nome, contato, endereco, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(bairro_id, lider_id ?? null, String(nome).trim(), contato, endereco, lat, lng);
-  return db.prepare("SELECT * FROM cabo WHERE id = ?").get(r.lastInsertRowid);
+export async function createCabo(dados) {
+  const registro = {
+    municipio_codigo: dados.municipio_codigo,
+    lider_id: dados.lider_id || null,
+    nome: texto(dados.nome),
+    contato: dados.contato ?? "",
+    endereco: dados.endereco ?? "",
+    lat: dados.lat ?? null,
+    lng: dados.lng ?? null,
+  };
+  return ok(await admin.from("cabo").insert(registro).select("*").single());
 }
-export function updateCabo({ id, nome, contato, lider_id, bairro_id, endereco, lat, lng }) {
-  const atual = db.prepare("SELECT lider_id, bairro_id, lat, lng FROM cabo WHERE id = ?").get(id);
-  db.prepare("UPDATE cabo SET nome=COALESCE(?,nome), contato=COALESCE(?,contato), lider_id=?, bairro_id=?, endereco=COALESCE(?,endereco), lat=?, lng=? WHERE id=?")
-    .run(nome ?? null, contato ?? null, lider_id === undefined ? (atual?.lider_id ?? null) : lider_id,
-      bairro_id ?? atual?.bairro_id, endereco ?? null, lat === undefined ? (atual?.lat ?? null) : lat,
-      lng === undefined ? (atual?.lng ?? null) : lng, id);
-  return db.prepare("SELECT * FROM cabo WHERE id = ?").get(id);
+
+export async function updateCabo(dados) {
+  const alteracoes = patch(dados, [
+    "nome", "contato", "endereco", "lat", "lng", "municipio_codigo",
+  ]);
+  if (dados.lider_id !== undefined) alteracoes.lider_id = dados.lider_id || null;
+  if (alteracoes.nome !== undefined) alteracoes.nome = texto(alteracoes.nome);
+  return ok(
+    await admin.from("cabo").update(alteracoes).eq("id", dados.id).select("*").single()
+  );
 }
-export function deleteCabo(id) { db.prepare("DELETE FROM cabo WHERE id = ?").run(id); }
+
+export async function deleteCabo(id) {
+  ok(await admin.from("cabo").delete().eq("id", id));
+}
 
 /* ------------------------- Rotas de rua ------------------------- */
-export function getRotas(municipio_codigo) {
-  const rotas = db.prepare(`SELECT r.*, b.nome AS bairro_nome FROM rota r
-    LEFT JOIN bairro b ON b.id = r.bairro_id WHERE r.municipio_codigo = ? ORDER BY r.id DESC`).all(municipio_codigo);
-  const pontosQuery = db.prepare(`
-    SELECT rp.*, c.nome AS cabo_nome, b.nome AS bairro_nome
-      FROM rota_ponto rp
-      LEFT JOIN cabo c ON c.id = rp.cabo_id
-      LEFT JOIN bairro b ON b.id = rp.bairro_id
-     WHERE rp.rota_id = ? ORDER BY rp.ordem, rp.id
-  `);
-  return rotas.map((rota) => ({
-    ...rota,
-    geometria: rota.geometria ? JSON.parse(rota.geometria) : null,
-    pontos: pontosQuery.all(rota.id),
-  }));
+export async function getRotas(municipio_codigo) {
+  const rotas = ok(
+    await admin.from("rota").select("*")
+      .eq("municipio_codigo", municipio_codigo)
+      .order("id", { ascending: false })
+  );
+  if (!rotas.length) return [];
+
+  const pontos = ok(
+    await admin.from("rota_ponto").select("*, cabo(nome)")
+      .in("rota_id", rotas.map((rota) => rota.id))
+      .order("ordem").order("id")
+  );
+  const porRota = new Map(rotas.map((rota) => [rota.id, []]));
+  for (const ponto of pontos) {
+    const { cabo, ...resto } = ponto;
+    porRota.get(ponto.rota_id)?.push({ ...resto, cabo_nome: cabo?.nome ?? null });
+  }
+  return rotas.map((rota) => ({ ...rota, pontos: porRota.get(rota.id) || [] }));
 }
-export function createRota({ municipio_codigo, nome, bairro_id = null }) {
-  const r = db.prepare("INSERT INTO rota (municipio_codigo, nome, bairro_id) VALUES (?, ?, ?)").run(municipio_codigo, String(nome).trim(), bairro_id || null);
-  return getRotas(municipio_codigo).find((rota) => rota.id === Number(r.lastInsertRowid));
+
+export async function createRota({ municipio_codigo, nome }) {
+  const rota = ok(
+    await admin.from("rota")
+      .insert({ municipio_codigo, nome: texto(nome) })
+      .select("*").single()
+  );
+  return { ...rota, pontos: [] };
 }
-export function updateRota({ id, nome, bairro_id, status, geometria, distancia_m, duracao_s }) {
-  db.prepare(`UPDATE rota SET nome=COALESCE(?,nome), status=COALESCE(?,status), geometria=COALESCE(?,geometria),
-    distancia_m=COALESCE(?,distancia_m), duracao_s=COALESCE(?,duracao_s), bairro_id=COALESCE(?,bairro_id) WHERE id=?`)
-    .run(nome ?? null, status ?? null, geometria === undefined ? null : JSON.stringify(geometria || null), distancia_m ?? null, duracao_s ?? null, bairro_id ?? null, id);
-  return db.prepare("SELECT * FROM rota WHERE id = ?").get(id);
+
+export async function updateRota(dados) {
+  const alteracoes = patch(dados, [
+    "nome", "status", "geometria", "distancia_m", "duracao_s",
+  ]);
+  return ok(
+    await admin.from("rota").update(alteracoes).eq("id", dados.id).select("*").single()
+  );
 }
-export function deleteRota(id) { db.prepare("DELETE FROM rota WHERE id = ?").run(id); }
-export function createRotaPonto({ rota_id, cabo_id = null, bairro_id = null, label = "", lat, lng }) {
-  const ordem = db.prepare("SELECT COALESCE(MAX(ordem), -1) + 1 AS o FROM rota_ponto WHERE rota_id = ?").get(rota_id).o;
-  const r = db.prepare("INSERT INTO rota_ponto (rota_id, cabo_id, bairro_id, label, lat, lng, ordem) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(rota_id, cabo_id, bairro_id, label, lat, lng, ordem);
-  return db.prepare("SELECT * FROM rota_ponto WHERE id = ?").get(r.lastInsertRowid);
+
+export async function deleteRota(id) {
+  ok(await admin.from("rota").delete().eq("id", id));
 }
-export function updateRotaPonto({ id, label, ordem }) {
-  db.prepare("UPDATE rota_ponto SET label=COALESCE(?,label), ordem=COALESCE(?,ordem) WHERE id=?").run(label ?? null, ordem ?? null, id);
-  return db.prepare("SELECT * FROM rota_ponto WHERE id = ?").get(id);
+
+export async function createRotaPonto({ rota_id, cabo_id = null, label = "", lat, lng }) {
+  const ultimo = ok(
+    await admin.from("rota_ponto").select("ordem")
+      .eq("rota_id", rota_id).order("ordem", { ascending: false }).limit(1).maybeSingle()
+  );
+  const ordem = (ultimo?.ordem ?? -1) + 1;
+  return ok(
+    await admin.from("rota_ponto")
+      .insert({ rota_id, cabo_id: cabo_id || null, label, lat, lng, ordem })
+      .select("*").single()
+  );
 }
-export function deleteRotaPonto(id) { db.prepare("DELETE FROM rota_ponto WHERE id = ?").run(id); }
+
+export async function updateRotaPonto(dados) {
+  const alteracoes = patch(dados, ["label", "ordem"]);
+  return ok(
+    await admin.from("rota_ponto").update(alteracoes).eq("id", dados.id).select("*").single()
+  );
+}
+
+export async function deleteRotaPonto(id) {
+  ok(await admin.from("rota_ponto").delete().eq("id", id));
+}
 
 /* ------------------------- Operação de campo ------------------------- */
 function statusDaTarefa(tarefa) {
@@ -440,123 +226,174 @@ function statusDaTarefa(tarefa) {
   return "planejada";
 }
 
-function montarTarefa(tarefa) {
+// Achata os embeds do PostgREST no formato plano que a UI ja consumia.
+function achatarTarefa(tarefa) {
+  const { rota, lider, ...resto } = tarefa;
+  return {
+    ...resto,
+    rota_nome: rota?.nome ?? null,
+    municipio_codigo: rota?.municipio_codigo ?? null,
+    municipio_nome: rota?.municipio?.nome ?? null,
+    lider_nome: lider?.nome ?? null,
+    lider_contato: lider?.contato ?? null,
+  };
+}
+
+// Busca cabos e pontos de varias tarefas de uma vez, para nao disparar uma
+// consulta por tarefa como o SQLite fazia.
+async function montarTarefas(tarefas) {
+  if (!tarefas.length) return [];
+  const planas = tarefas.map(achatarTarefa);
+
+  const [vinculos, pontos] = await Promise.all([
+    admin.from("tarefa_rota_cabo").select("*, cabo(nome, contato, lider_id)")
+      .in("tarefa_id", planas.map((tarefa) => tarefa.id)).then(ok),
+    admin.from("rota_ponto").select("*")
+      .in("rota_id", [...new Set(planas.map((tarefa) => tarefa.rota_id))])
+      .order("ordem").order("id").then(ok),
+  ]);
+
+  const cabosPorTarefa = new Map(planas.map((tarefa) => [tarefa.id, []]));
+  for (const vinculo of vinculos) {
+    const { cabo, ...resto } = vinculo;
+    cabosPorTarefa.get(vinculo.tarefa_id)?.push({
+      ...resto,
+      nome: cabo?.nome ?? "",
+      contato: cabo?.contato ?? "",
+      cabo_lider_id: cabo?.lider_id ?? null,
+    });
+  }
+  const pontosPorRota = new Map();
+  for (const ponto of pontos) {
+    if (!pontosPorRota.has(ponto.rota_id)) pontosPorRota.set(ponto.rota_id, []);
+    pontosPorRota.get(ponto.rota_id).push(ponto);
+  }
+
+  return planas.map((tarefa) => {
+    const cabos = (cabosPorTarefa.get(tarefa.id) || []).sort(porNome);
+    const montada = { ...tarefa, cabos, pontos: pontosPorRota.get(tarefa.rota_id) || [] };
+    montada.status_calculado = statusDaTarefa(montada);
+    montada.retornos = cabos.filter((cabo) => cabo.status === "retorno").length;
+    montada.ausentes = cabos.filter((cabo) => cabo.status === "ausente").length;
+    montada.registrados = montada.retornos + montada.ausentes;
+    return montada;
+  });
+}
+
+export async function getTarefas(municipio_codigo) {
+  const tarefas = ok(
+    await admin.from("tarefa_rota")
+      .select("*, rota!inner(nome, municipio_codigo), lider(nome, contato)")
+      .eq("rota.municipio_codigo", municipio_codigo)
+      .order("data", { ascending: false })
+      .order("id", { ascending: false })
+  );
+  return montarTarefas(tarefas);
+}
+
+export async function getTarefaByToken(token) {
+  const tarefa = ok(
+    await admin.from("tarefa_rota")
+      .select("*, rota!inner(nome, municipio_codigo, municipio(nome)), lider(nome, contato)")
+      .eq("token", token).maybeSingle()
+  );
   if (!tarefa) return null;
-  const cabos = db.prepare(`SELECT trc.*, c.nome, c.contato, c.lider_id AS cabo_lider_id
-    FROM tarefa_rota_cabo trc JOIN cabo c ON c.id = trc.cabo_id
-    WHERE trc.tarefa_id = ? ORDER BY c.nome COLLATE NOCASE`).all(tarefa.id);
-  const pontos = db.prepare("SELECT * FROM rota_ponto WHERE rota_id = ? ORDER BY ordem, id").all(tarefa.rota_id);
-  const result = { ...tarefa, cabos, pontos };
-  result.status_calculado = statusDaTarefa(result);
-  result.retornos = cabos.filter((cabo) => cabo.status === "retorno").length;
-  result.ausentes = cabos.filter((cabo) => cabo.status === "ausente").length;
-  result.registrados = result.retornos + result.ausentes;
-  return result;
+  const [montada] = await montarTarefas([tarefa]);
+  return montada;
 }
 
-export function getTarefas(municipio_codigo) {
-  return db.prepare(`SELECT t.*, r.nome AS rota_nome, r.municipio_codigo, b.nome AS bairro_nome,
-      l.nome AS lider_nome, l.contato AS lider_contato
-    FROM tarefa_rota t JOIN rota r ON r.id = t.rota_id
-    LEFT JOIN bairro b ON b.id = t.bairro_id
-    LEFT JOIN lider l ON l.id = t.lider_id
-    WHERE r.municipio_codigo = ? ORDER BY t.data DESC, t.id DESC`).all(municipio_codigo).map(montarTarefa);
+export async function createTarefa({ rota_id, lider_id, data, turno = "Manhã", observacao = "", cabo_ids = [] }) {
+  const token = ok(
+    await admin.rpc("criar_tarefa_rota", {
+      p_rota_id: Number(rota_id),
+      p_lider_id: Number(lider_id),
+      p_data: data,
+      p_turno: turno,
+      p_observacao: observacao,
+      p_cabo_ids: [...new Set(cabo_ids.map(Number))],
+    })
+  );
+  return getTarefaByToken(token);
 }
 
-export function getTarefaByToken(token) {
-  const tarefa = db.prepare(`SELECT t.*, r.nome AS rota_nome, r.municipio_codigo, m.nome AS municipio_nome,
-    b.nome AS bairro_nome, l.nome AS lider_nome, l.contato AS lider_contato
-    FROM tarefa_rota t JOIN rota r ON r.id = t.rota_id
-    JOIN municipio m ON m.codigo = r.municipio_codigo LEFT JOIN bairro b ON b.id = t.bairro_id
-    LEFT JOIN lider l ON l.id = t.lider_id
-    WHERE t.token = ?`).get(token);
-  return montarTarefa(tarefa);
-}
+export async function updateTarefaCabo({ tarefa_id, cabo_id, status, observacao }) {
+  const permitidos = new Set(["pendente", "retorno", "ausente"]);
+  if (!permitidos.has(status)) throw new Error("Status inválido");
 
-export function createTarefa({ rota_id, bairro_id = null, lider_id, data, turno = "Manhã", observacao = "", cabo_ids = [] }) {
-  const rota = db.prepare("SELECT * FROM rota WHERE id = ?").get(rota_id);
-  if (!rota) throw new Error("Rota não encontrada");
-  if (rota.status !== "finalizada") throw new Error("Finalize a rota antes de criar o plano de campo");
-  const pointCount = db.prepare("SELECT COUNT(*) AS total FROM rota_ponto WHERE rota_id = ?").get(rota_id).total;
-  if (pointCount < 2) throw new Error("A rota precisa ter partida e chegada");
-  const targetBairro = Number(bairro_id || rota.bairro_id);
-  if (!targetBairro) throw new Error("Escolha o bairro atendido pela rota");
-  const lider = db.prepare("SELECT id FROM lider WHERE id = ? AND municipio_codigo = ? AND nivel <> 'coordenacao'").get(Number(lider_id), rota.municipio_codigo);
-  if (!lider) throw new Error("Escolha a liderança responsável pela equipe");
-  const uniqueCabos = [...new Set(cabo_ids.map(Number))];
-  const caboNoBairro = db.prepare("SELECT 1 FROM cabo WHERE id = ? AND bairro_id = ?");
-  if (uniqueCabos.some((caboId) => !caboNoBairro.get(caboId, targetBairro))) {
-    throw new Error("Todos os cabos precisam pertencer ao bairro escolhido");
-  }
-  const token = randomUUID();
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const result = db.prepare(`INSERT INTO tarefa_rota (rota_id, bairro_id, lider_id, data, turno, observacao, token)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(rota_id, targetBairro, lider.id, data, turno, observacao, token);
-    const tarefaId = Number(result.lastInsertRowid);
-    const insertCabo = db.prepare("INSERT INTO tarefa_rota_cabo (tarefa_id, cabo_id) VALUES (?, ?)");
-    for (const caboId of uniqueCabos) insertCabo.run(tarefaId, caboId);
-    db.exec("COMMIT");
-    return getTarefaByToken(token);
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-export function updateTarefaCabo({ tarefa_id, cabo_id, status, observacao }) {
-  const allowed = new Set(["pendente", "retorno", "ausente"]);
-  if (!allowed.has(status)) throw new Error("Status inválido");
-  const tarefa = db.prepare("SELECT id, token FROM tarefa_rota WHERE id = ?").get(tarefa_id);
+  const tarefa = ok(
+    await admin.from("tarefa_rota").select("id, token").eq("id", tarefa_id).maybeSingle()
+  );
   if (!tarefa) throw new Error("Plano de campo não encontrado");
-  const atual = db.prepare("SELECT * FROM tarefa_rota_cabo WHERE tarefa_id = ? AND cabo_id = ?").get(tarefa.id, cabo_id);
-  if (!atual) throw new Error("Cabo não pertence a este plano");
-  const iniciado = null;
-  const concluido = status === "retorno" ? new Date().toISOString() : null;
-  db.prepare(`UPDATE tarefa_rota_cabo SET status=?, iniciado_em=?, concluido_em=?, observacao=COALESCE(?,observacao)
-    WHERE tarefa_id=? AND cabo_id=?`).run(status, iniciado, concluido, observacao ?? null, tarefa.id, cabo_id);
+
+  const alteracoes = {
+    status,
+    iniciado_em: null,
+    concluido_em: status === "retorno" ? new Date().toISOString() : null,
+  };
+  if (observacao !== undefined && observacao !== null) alteracoes.observacao = observacao;
+
+  const atualizados = ok(
+    await admin.from("tarefa_rota_cabo").update(alteracoes)
+      .eq("tarefa_id", tarefa.id).eq("cabo_id", cabo_id).select("cabo_id")
+  );
+  if (!atualizados.length) throw new Error("Cabo não pertence a este plano");
+
   return getTarefaByToken(tarefa.token);
 }
 
-export function deleteTarefa(id) { db.prepare("DELETE FROM tarefa_rota WHERE id = ?").run(id); }
+export async function deleteTarefa(id) {
+  ok(await admin.from("tarefa_rota").delete().eq("id", id));
+}
 
-/* ------------------------- Equipe / Export ------------------------- */
-export function getEquipe() {
-  const lideres = db.prepare(`
-    SELECT l.*, CASE WHEN l.nivel = 'coordenacao' THEN 'Toda a campanha' ELSE m.nome END AS municipio_nome,
-      CASE WHEN l.nivel = 'coordenacao' THEN 1 ELSE 0 END AS escopo_global,
-      (SELECT GROUP_CONCAT(b.nome, ', ') FROM lider_bairro lb JOIN bairro b ON b.id = lb.bairro_id WHERE lb.lider_id = l.id) AS bairros
-    FROM lider l JOIN municipio m ON m.codigo = l.municipio_codigo
-    ORDER BY m.nome COLLATE NOCASE, l.nome COLLATE NOCASE
-  `).all();
-  const cabos = db.prepare(`
-    SELECT c.*, b.nome AS bairro_nome, m.nome AS municipio_nome, l.nome AS lider_nome
-    FROM cabo c JOIN bairro b ON b.id = c.bairro_id JOIN municipio m ON m.codigo = b.municipio_codigo
-    LEFT JOIN lider l ON l.id = c.lider_id
-    ORDER BY m.nome COLLATE NOCASE, b.nome COLLATE NOCASE, c.nome COLLATE NOCASE
-  `).all();
-  return { lideres, cabos };
+/* ------------------------- Equipe ------------------------- */
+export async function getEquipe() {
+  const [lideres, cabos] = await Promise.all([
+    admin.from("lider").select("*, municipio(nome)").then(ok),
+    admin.from("cabo").select("*, municipio(nome), lider(nome)").then(ok),
+  ]);
+
+  return {
+    lideres: lideres
+      .map(({ municipio, ...lider }) => ({
+        ...lider,
+        escopo_global: ehGlobal(lider.nivel) ? 1 : 0,
+        municipio_nome: ehGlobal(lider.nivel) ? "Toda a campanha" : (municipio?.nome ?? ""),
+      }))
+      .sort((a, b) => colacao.compare(a.municipio_nome, b.municipio_nome) || porNome(a, b)),
+    cabos: cabos
+      .map(({ municipio, lider, ...cabo }) => ({
+        ...cabo,
+        municipio_nome: municipio?.nome ?? "",
+        lider_nome: lider?.nome ?? null,
+      }))
+      .sort((a, b) => colacao.compare(a.municipio_nome, b.municipio_nome) || porNome(a, b)),
+  };
 }
 
 /* ------------------------- Dashboard ------------------------- */
-export function getDashboard() {
-  const est = getEstado();
-  const comEquipe = est.filter((m) => m.total > 0);
-  const nLideres = est.reduce((a, m) => a + m.nLideres, 0);
-  const nCabos = est.reduce((a, m) => a + m.nCabos, 0);
-  const nBairros = db.prepare("SELECT COUNT(*) n FROM bairro").get().n;
-  const nEstrategias = db.prepare("SELECT COUNT(*) n FROM estrategia").get().n;
-  const ranking = comEquipe.slice().sort((a, b) => (b.total - a.total) || (b.nLideres - a.nLideres));
-  const coresRows = db.prepare("SELECT classificacao AS cor, COUNT(*) n FROM lider WHERE nivel <> 'coordenacao' GROUP BY classificacao").all();
+export async function getDashboard() {
+  const [estado, estrategias, classificacoes] = await Promise.all([
+    getEstado(),
+    admin.from("estrategia").select("*", { count: "exact", head: true })
+      .then(({ count, error }) => { if (error) throw new Error(error.message); return count ?? 0; }),
+    admin.from("lider").select("classificacao").not("nivel", "in", `(${NIVEIS_GLOBAIS.join(",")})`).then(ok),
+  ]);
+
+  const comEquipe = estado.filter((municipio) => municipio.total > 0);
   const cores = { verde: 0, amarelo: 0, vermelho: 0, sem: 0 };
-  for (const r of coresRows) cores[r.cor && cores[r.cor] !== undefined ? r.cor : "sem"] += r.n;
+  for (const { classificacao } of classificacoes) {
+    cores[classificacao && cores[classificacao] !== undefined ? classificacao : "sem"] += 1;
+  }
+
   return {
-    nMunicipios: est.length,
+    nMunicipios: estado.length,
     nCidadesComEquipe: comEquipe.length,
-    nLideres, nCabos, nBairros, nEstrategias,
-    sudoesteTotal: est.filter((m) => m.sudoeste).length,
-    sudoesteComEquipe: est.filter((m) => m.sudoeste && m.total > 0).length,
-    ranking,
+    nLideres: estado.reduce((soma, municipio) => soma + municipio.nLideres, 0),
+    nCabos: estado.reduce((soma, municipio) => soma + municipio.nCabos, 0),
+    nEstrategias: estrategias,
+    sudoesteTotal: estado.filter((municipio) => municipio.sudoeste).length,
+    sudoesteComEquipe: estado.filter((municipio) => municipio.sudoeste && municipio.total > 0).length,
+    ranking: comEquipe.slice().sort((a, b) => (b.total - a.total) || (b.nLideres - a.nLideres)),
     cores,
   };
 }
@@ -567,29 +404,46 @@ function budgetNumber(value, fallback = 0) {
   return Number.isFinite(number) && number >= 0 ? number : fallback;
 }
 
-function getBudgetCounters() {
-  const cabos = db.prepare("SELECT COUNT(*) AS total FROM cabo").get().total;
-  const liderancas = db.prepare("SELECT COUNT(*) AS total FROM lider WHERE nivel <> 'coordenacao'").get().total;
-  const coordenadores = db.prepare("SELECT COUNT(*) AS total FROM lider WHERE nivel = 'coordenacao'").get().total;
+async function contar(tabela, aplicarFiltro = (query) => query) {
+  const { count, error } = await aplicarFiltro(
+    admin.from(tabela).select("*", { count: "exact", head: true })
+  );
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+async function getBudgetCounters() {
+  const globais = `(${NIVEIS_GLOBAIS.join(",")})`;
+  const [cabos, liderancas, coordenadores] = await Promise.all([
+    contar("cabo"),
+    contar("lider", (query) => query.not("nivel", "in", globais)),
+    contar("lider", (query) => query.in("nivel", NIVEIS_GLOBAIS)),
+  ]);
   return { cabos, liderancas, coordenadores, equipe: cabos + liderancas + coordenadores };
 }
 
-export function getOrcamento() {
-  db.prepare("INSERT OR IGNORE INTO orcamento_config (id) VALUES (1)").run();
-  const config = db.prepare("SELECT * FROM orcamento_config WHERE id = 1").get();
-  const contadores = getBudgetCounters();
-  const items = db.prepare("SELECT * FROM orcamento_item ORDER BY ordem, id").all().map((item) => {
+export async function getOrcamento() {
+  const [config, contadores, brutos] = await Promise.all([
+    admin.from("orcamento_config").select("*").eq("id", 1).single().then(ok),
+    getBudgetCounters(),
+    admin.from("orcamento_item").select("*").order("ordem").order("id").then(ok),
+  ]);
+
+  const items = brutos.map((item) => {
     const usa_cadastro = item.vinculo !== "manual" && item.modo_quantidade !== "simulacao";
     const quantidade_calculada = usa_cadastro ? Number(contadores[item.vinculo] || 0) : Number(item.quantidade);
-    const total = quantidade_calculada * Number(item.periodos) * Number(item.custo_unitario);
-    return { ...item, usa_cadastro, quantidade_calculada, total };
+    return { ...item, usa_cadastro, quantidade_calculada, total: quantidade_calculada * Number(item.periodos) * Number(item.custo_unitario) };
   });
+
   const categoriasMap = new Map();
   for (const item of items) categoriasMap.set(item.categoria, (categoriasMap.get(item.categoria) || 0) + item.total);
-  const categorias = [...categoriasMap.entries()].map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total);
-  const planejado = items.reduce((sum, item) => sum + item.total, 0);
+  const categorias = [...categoriasMap.entries()]
+    .map(([categoria, total]) => ({ categoria, total }))
+    .sort((a, b) => b.total - a.total);
+
+  const planejado = items.reduce((soma, item) => soma + item.total, 0);
   const reserva = Number(config.fundo_total) * Number(config.reserva_percentual) / 100;
-  const saldo = Number(config.fundo_total) - planejado - reserva;
+
   return {
     config,
     contadores,
@@ -598,114 +452,178 @@ export function getOrcamento() {
     resumo: {
       planejado,
       reserva,
-      saldo,
+      saldo: Number(config.fundo_total) - planejado - reserva,
       percentual_comprometido: Number(config.fundo_total) > 0 ? (planejado / Number(config.fundo_total)) * 100 : 0,
     },
   };
 }
 
-export function updateOrcamentoConfig({ nome_cenario, fundo_total, reserva_percentual }) {
-  db.prepare(`UPDATE orcamento_config SET nome_cenario=COALESCE(?,nome_cenario), fundo_total=COALESCE(?,fundo_total),
-    reserva_percentual=COALESCE(?,reserva_percentual), atualizado_em=datetime('now') WHERE id=1`)
-    .run(nome_cenario?.trim() || null, fundo_total === undefined ? null : budgetNumber(fundo_total),
-      reserva_percentual === undefined ? null : Math.min(100, budgetNumber(reserva_percentual)));
+export async function updateOrcamentoConfig({ nome_cenario, fundo_total, reserva_percentual }) {
+  const alteracoes = { atualizado_em: new Date().toISOString() };
+  if (nome_cenario?.trim()) alteracoes.nome_cenario = nome_cenario.trim();
+  if (fundo_total !== undefined) alteracoes.fundo_total = budgetNumber(fundo_total);
+  if (reserva_percentual !== undefined) alteracoes.reserva_percentual = Math.min(100, budgetNumber(reserva_percentual));
+
+  ok(await admin.from("orcamento_config").update(alteracoes).eq("id", 1));
   return getOrcamento();
 }
 
-export function createOrcamentoItem({ categoria = "Outros", nome, vinculo = "manual", modo_quantidade = "simulacao", quantidade = 1, periodos = 1, custo_unitario = 0, observacao = "" }) {
-  if (!String(nome || "").trim()) throw new Error("Informe o nome do custo");
-  const allowed = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
-  const selectedLink = allowed.has(vinculo) ? vinculo : "manual";
-  const selectedMode = selectedLink === "manual" ? "simulacao" : (modo_quantidade === "simulacao" ? "simulacao" : "automatico");
-  const ordem = db.prepare("SELECT COALESCE(MAX(ordem), -1) + 1 AS ordem FROM orcamento_item").get().ordem;
-  const result = db.prepare(`INSERT INTO orcamento_item (categoria,nome,vinculo,modo_quantidade,quantidade,periodos,custo_unitario,observacao,ordem)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(String(categoria || "Outros").trim(), String(nome).trim(), selectedLink, selectedMode,
-      budgetNumber(quantidade, 1), budgetNumber(periodos, 1), budgetNumber(custo_unitario), String(observacao || "").trim(), ordem);
-  return getOrcamento().items.find((item) => item.id === Number(result.lastInsertRowid));
+export async function createOrcamentoItem({ categoria = "Outros", nome, vinculo = "manual", modo_quantidade = "simulacao", quantidade = 1, periodos = 1, custo_unitario = 0, observacao = "" }) {
+  if (!texto(nome)) throw new Error("Informe o nome do custo");
+  const permitidos = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
+  const vinculoEscolhido = permitidos.has(vinculo) ? vinculo : "manual";
+  const modoEscolhido = vinculoEscolhido === "manual"
+    ? "simulacao"
+    : (modo_quantidade === "simulacao" ? "simulacao" : "automatico");
+
+  const ultimo = ok(
+    await admin.from("orcamento_item").select("ordem")
+      .order("ordem", { ascending: false }).limit(1).maybeSingle()
+  );
+
+  const criado = ok(
+    await admin.from("orcamento_item").insert({
+      categoria: texto(categoria) || "Outros",
+      nome: texto(nome),
+      vinculo: vinculoEscolhido,
+      modo_quantidade: modoEscolhido,
+      quantidade: budgetNumber(quantidade, 1),
+      periodos: budgetNumber(periodos, 1),
+      custo_unitario: budgetNumber(custo_unitario),
+      observacao: texto(observacao),
+      ordem: (ultimo?.ordem ?? -1) + 1,
+    }).select("id").single()
+  );
+
+  const { items } = await getOrcamento();
+  return items.find((item) => item.id === criado.id);
 }
 
-export function updateOrcamentoItem({ id, categoria, nome, vinculo, modo_quantidade, quantidade, periodos, custo_unitario, observacao }) {
-  const allowed = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
-  const current = db.prepare("SELECT vinculo, modo_quantidade FROM orcamento_item WHERE id = ?").get(id);
-  if (!current) throw new Error("Custo não encontrado");
-  const selectedLink = vinculo === undefined ? current.vinculo : (allowed.has(vinculo) ? vinculo : "manual");
-  const selectedMode = selectedLink === "manual" ? "simulacao" : (modo_quantidade === undefined ? current.modo_quantidade : (modo_quantidade === "simulacao" ? "simulacao" : "automatico"));
-  db.prepare(`UPDATE orcamento_item SET categoria=COALESCE(?,categoria), nome=COALESCE(?,nome), vinculo=COALESCE(?,vinculo),
-    modo_quantidade=COALESCE(?,modo_quantidade), quantidade=COALESCE(?,quantidade), periodos=COALESCE(?,periodos),
-    custo_unitario=COALESCE(?,custo_unitario), observacao=COALESCE(?,observacao) WHERE id=?`).run(categoria?.trim() || null, nome?.trim() || null,
-      selectedLink, selectedMode,
-      quantidade === undefined ? null : budgetNumber(quantidade), periodos === undefined ? null : budgetNumber(periodos),
-      custo_unitario === undefined ? null : budgetNumber(custo_unitario), observacao === undefined ? null : String(observacao).trim(), id);
-  return getOrcamento().items.find((item) => item.id === Number(id));
+export async function updateOrcamentoItem(dados) {
+  const permitidos = new Set(["manual", "cabos", "liderancas", "coordenadores", "equipe"]);
+  const atual = ok(
+    await admin.from("orcamento_item").select("vinculo, modo_quantidade").eq("id", dados.id).maybeSingle()
+  );
+  if (!atual) throw new Error("Custo não encontrado");
+
+  const vinculo = dados.vinculo === undefined
+    ? atual.vinculo
+    : (permitidos.has(dados.vinculo) ? dados.vinculo : "manual");
+  const modo_quantidade = vinculo === "manual"
+    ? "simulacao"
+    : (dados.modo_quantidade === undefined
+        ? atual.modo_quantidade
+        : (dados.modo_quantidade === "simulacao" ? "simulacao" : "automatico"));
+
+  const alteracoes = { vinculo, modo_quantidade };
+  if (dados.categoria?.trim()) alteracoes.categoria = dados.categoria.trim();
+  if (dados.nome?.trim()) alteracoes.nome = dados.nome.trim();
+  if (dados.quantidade !== undefined) alteracoes.quantidade = budgetNumber(dados.quantidade);
+  if (dados.periodos !== undefined) alteracoes.periodos = budgetNumber(dados.periodos);
+  if (dados.custo_unitario !== undefined) alteracoes.custo_unitario = budgetNumber(dados.custo_unitario);
+  if (dados.observacao !== undefined) alteracoes.observacao = texto(dados.observacao);
+
+  ok(await admin.from("orcamento_item").update(alteracoes).eq("id", dados.id));
+  const { items } = await getOrcamento();
+  return items.find((item) => item.id === Number(dados.id));
 }
 
-export function deleteOrcamentoItem(id) {
-  db.prepare("DELETE FROM orcamento_item WHERE id = ?").run(id);
+export async function deleteOrcamentoItem(id) {
+  ok(await admin.from("orcamento_item").delete().eq("id", id));
 }
 
 /* ------------------------- Estratégias ------------------------- */
-export function getEstrategias() {
-  return db.prepare("SELECT * FROM estrategia ORDER BY id DESC").all();
-}
-export function createEstrategia({ titulo = "", texto = "", categoria = "Geral" }) {
-  const r = db.prepare("INSERT INTO estrategia (titulo, texto, categoria) VALUES (?, ?, ?)").run(titulo, texto, categoria);
-  return db.prepare("SELECT * FROM estrategia WHERE id = ?").get(r.lastInsertRowid);
-}
-export function updateEstrategia({ id, titulo, texto, categoria }) {
-  db.prepare("UPDATE estrategia SET titulo=COALESCE(?,titulo), texto=COALESCE(?,texto), categoria=COALESCE(?,categoria) WHERE id=?")
-    .run(titulo ?? null, texto ?? null, categoria ?? null, id);
-  return db.prepare("SELECT * FROM estrategia WHERE id = ?").get(id);
-}
-export function deleteEstrategia(id) { db.prepare("DELETE FROM estrategia WHERE id = ?").run(id); }
-export function importEstrategias(items) {
-  const ins = db.prepare("INSERT INTO estrategia (titulo, texto, categoria) VALUES (?, ?, ?)");
-  let n = 0;
-  for (const it of items || []) {
-    if (!it) continue;
-    ins.run(it.titulo || "", it.descricao || it.texto || "", it.categoria || "Geral");
-    n++;
-  }
-  return { importados: n };
+export async function getEstrategias() {
+  return ok(await admin.from("estrategia").select("*").order("id", { ascending: false }));
 }
 
-// Importa o backup do app HTML de contatos (data = [{nome, codigo, regiao, pessoas:[{nome,cargo,obs}]}]).
-export function importContatos(cities) {
-  const byCodigo = db.prepare("SELECT codigo FROM municipio WHERE codigo = ?");
-  const byNome = db.prepare("SELECT codigo FROM municipio WHERE nome = ? COLLATE NOCASE");
-  const jaExiste = db.prepare("SELECT 1 FROM lider WHERE municipio_codigo = ? AND nome = ? COLLATE NOCASE LIMIT 1");
-  const ins = db.prepare("INSERT INTO lider (municipio_codigo, nome, cargo, observacao) VALUES (?, ?, ?, ?)");
-  let importados = 0, municipios = 0, pulados = 0, extras = 0;
-  for (const c of cities || []) {
-    let cod = null;
-    if (c.codigo && byCodigo.get(Number(c.codigo))) cod = Number(c.codigo);
-    else if (c.nome) { const r = byNome.get(String(c.nome)); if (r) cod = r.codigo; }
-    const pessoas = (c.pessoas || []).filter((p) => p && p.nome && String(p.nome).trim());
-    if (!cod) { extras += pessoas.length; continue; }
-    let add = 0;
-    for (const p of pessoas) {
-      const nome = String(p.nome).trim();
-      if (jaExiste.get(cod, nome)) { pulados++; continue; }
-      ins.run(cod, nome, p.cargo || "", p.obs || "");
-      importados++; add++;
+export async function createEstrategia({ titulo = "", texto: corpo = "", categoria = "Geral" }) {
+  return ok(
+    await admin.from("estrategia").insert({ titulo, texto: corpo, categoria }).select("*").single()
+  );
+}
+
+export async function updateEstrategia(dados) {
+  const alteracoes = patch(dados, ["titulo", "texto", "categoria"]);
+  return ok(
+    await admin.from("estrategia").update(alteracoes).eq("id", dados.id).select("*").single()
+  );
+}
+
+export async function deleteEstrategia(id) {
+  ok(await admin.from("estrategia").delete().eq("id", id));
+}
+
+export async function importEstrategias(itens) {
+  const linhas = (itens || []).filter(Boolean).map((item) => ({
+    titulo: item.titulo || "",
+    texto: item.descricao || item.texto || "",
+    categoria: item.categoria || "Geral",
+  }));
+  if (!linhas.length) return { importados: 0 };
+  ok(await admin.from("estrategia").insert(linhas));
+  return { importados: linhas.length };
+}
+
+// Importa o backup do app HTML de contatos
+// (data = [{nome, codigo, regiao, pessoas: [{nome, cargo, obs}]}]).
+export async function importContatos(cidades) {
+  const municipios = ok(await admin.from("municipio").select("codigo, nome"));
+  const porCodigo = new Set(municipios.map((municipio) => municipio.codigo));
+  const porNomeMunicipio = new Map(
+    municipios.map((municipio) => [municipio.nome.toLocaleLowerCase("pt-BR"), municipio.codigo])
+  );
+
+  const existentes = ok(await admin.from("lider").select("municipio_codigo, nome"));
+  const jaCadastrados = new Set(
+    existentes.map((lider) => `${lider.municipio_codigo}|${lider.nome.toLocaleLowerCase("pt-BR")}`)
+  );
+
+  const novos = [];
+  let municipiosAtingidos = 0, pulados = 0, extras = 0;
+
+  for (const cidade of cidades || []) {
+    let codigo = null;
+    if (cidade.codigo && porCodigo.has(Number(cidade.codigo))) codigo = Number(cidade.codigo);
+    else if (cidade.nome) codigo = porNomeMunicipio.get(String(cidade.nome).toLocaleLowerCase("pt-BR")) ?? null;
+
+    const pessoas = (cidade.pessoas || []).filter((pessoa) => pessoa && texto(pessoa.nome));
+    if (!codigo) { extras += pessoas.length; continue; }
+
+    let adicionados = 0;
+    for (const pessoa of pessoas) {
+      const nome = texto(pessoa.nome);
+      const chave = `${codigo}|${nome.toLocaleLowerCase("pt-BR")}`;
+      if (jaCadastrados.has(chave)) { pulados++; continue; }
+      jaCadastrados.add(chave);
+      novos.push({ municipio_codigo: codigo, nome, cargo: pessoa.cargo || "", observacao: pessoa.obs || "" });
+      adicionados++;
     }
-    if (add) municipios++;
+    if (adicionados) municipiosAtingidos++;
   }
-  return { importados, municipios, pulados, extras };
+
+  if (novos.length) ok(await admin.from("lider").insert(novos));
+  return { importados: novos.length, municipios: municipiosAtingidos, pulados, extras };
 }
 
-export function exportAll() {
+export async function exportAll() {
+  const [municipios, lideres, cabos, rotas, rota_pontos, tarefas, tarefa_cabos, estrategias, orcamento_config, orcamento_itens] =
+    await Promise.all([
+      admin.from("municipio").select("*").order("nome").then(ok),
+      admin.from("lider").select("*").order("id").then(ok),
+      admin.from("cabo").select("*").order("id").then(ok),
+      admin.from("rota").select("*").order("id").then(ok),
+      admin.from("rota_ponto").select("*").order("rota_id").order("ordem").then(ok),
+      admin.from("tarefa_rota").select("*").order("id").then(ok),
+      admin.from("tarefa_rota_cabo").select("*").order("tarefa_id").then(ok),
+      admin.from("estrategia").select("*").order("id").then(ok),
+      admin.from("orcamento_config").select("*").eq("id", 1).single().then(ok),
+      admin.from("orcamento_item").select("*").order("ordem").then(ok),
+    ]);
+
   return {
     exportado_em: new Date().toISOString(),
-    municipios: db.prepare("SELECT * FROM municipio ORDER BY nome").all(),
-    bairros: db.prepare("SELECT * FROM bairro ORDER BY municipio_codigo, ordem").all(),
-    lideres: db.prepare("SELECT * FROM lider ORDER BY id").all(),
-    lider_bairro: db.prepare("SELECT * FROM lider_bairro").all(),
-    cabos: db.prepare("SELECT * FROM cabo ORDER BY id").all(),
-    rotas: db.prepare("SELECT * FROM rota ORDER BY id").all(),
-    rota_pontos: db.prepare("SELECT * FROM rota_ponto ORDER BY rota_id, ordem").all(),
-    tarefas_rota: db.prepare("SELECT * FROM tarefa_rota ORDER BY id").all(),
-    tarefas_cabos: db.prepare("SELECT * FROM tarefa_rota_cabo ORDER BY tarefa_id, cabo_id").all(),
-    orcamento_config: db.prepare("SELECT * FROM orcamento_config").all(),
-    orcamento_itens: db.prepare("SELECT * FROM orcamento_item ORDER BY ordem, id").all(),
+    municipios, lideres, cabos, rotas, rota_pontos, tarefas, tarefa_cabos,
+    estrategias, orcamento_config, orcamento_itens,
   };
 }
