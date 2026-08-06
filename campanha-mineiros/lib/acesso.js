@@ -7,19 +7,21 @@
 //
 // Consulta direta ao PostgREST em vez de supabase-js: este arquivo também é
 // importado pelo proxy.js, que roda antes da aplicação.
-const URL_BASE = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SECRET = process.env.SUPABASE_SECRET_KEY;
-
 export async function estaAutorizado(email) {
-  const alvo = String(email ?? "").trim().toLowerCase();
-  if (!alvo || !URL_BASE || !SECRET) return false;
+  // Lido aqui dentro, e não no topo do arquivo: durante o `next build` as
+  // variáveis de runtime não existem.
+  const urlBase = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const secret = process.env.SUPABASE_SECRET_KEY;
 
-  const endereco = `${URL_BASE}/rest/v1/usuario_autorizado`
+  const alvo = String(email ?? "").trim().toLowerCase();
+  if (!alvo || !urlBase || !secret) return false;
+
+  const endereco = `${urlBase}/rest/v1/usuario_autorizado`
     + `?select=email&email=eq.${encodeURIComponent(alvo)}&limit=1`;
 
   try {
     const resposta = await fetch(endereco, {
-      headers: { apikey: SECRET, Authorization: `Bearer ${SECRET}` },
+      headers: { apikey: secret, Authorization: `Bearer ${secret}` },
       cache: "no-store",
     });
     if (!resposta.ok) return false;
