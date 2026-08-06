@@ -24,7 +24,7 @@ export default async function RootLayout({ children }) {
     <html lang="pt-BR" className={kanit.variable}>
       <body suppressHydrationWarning>
         <TooltipProvider delayDuration={200}>
-          <AppFrame email={usuario?.email ?? null}>{children}</AppFrame>
+          <AppFrame email={usuario?.email ?? null} admin={usuario?.admin === true}>{children}</AppFrame>
           <Toaster position="bottom-right" />
         </TooltipProvider>
       </body>

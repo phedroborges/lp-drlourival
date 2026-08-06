@@ -7,14 +7,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 // de rua abre por link, e o login.
 const SEM_MOLDURA = [/^\/campo\//, /^\/login$/];
 
-export default function AppFrame({ children, email }) {
+export default function AppFrame({ children, email, admin = false }) {
   const pathname = usePathname();
   if (SEM_MOLDURA.some((padrao) => padrao.test(pathname))) return children;
 
   const iniciais = (email || "DL").slice(0, 2).toUpperCase();
   return (
     <div className="app">
-      <Nav />
+      <Nav admin={admin} />
       <div className="workspace-shell">
         <header className="app-topbar">
           <div><span className="topbar-dot" /><strong>Central de dados</strong></div>

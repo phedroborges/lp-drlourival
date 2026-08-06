@@ -7,28 +7,33 @@
 //
 // Consulta direta ao PostgREST em vez de supabase-js: este arquivo também é
 // importado pelo proxy.js, que roda antes da aplicação.
-export async function estaAutorizado(email) {
+
+export async function buscarAutorizacao(email) {
   // Lido aqui dentro, e não no topo do arquivo: durante o `next build` as
   // variáveis de runtime não existem.
   const urlBase = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secret = process.env.SUPABASE_SECRET_KEY;
 
   const alvo = String(email ?? "").trim().toLowerCase();
-  if (!alvo || !urlBase || !secret) return false;
+  if (!alvo || !urlBase || !secret) return null;
 
   const endereco = `${urlBase}/rest/v1/usuario_autorizado`
-    + `?select=email&email=eq.${encodeURIComponent(alvo)}&limit=1`;
+    + `?select=email,nome,admin&email=eq.${encodeURIComponent(alvo)}&limit=1`;
 
   try {
     const resposta = await fetch(endereco, {
       headers: { apikey: secret, Authorization: `Bearer ${secret}` },
       cache: "no-store",
     });
-    if (!resposta.ok) return false;
+    if (!resposta.ok) return null;
     const linhas = await resposta.json();
-    return Array.isArray(linhas) && linhas.length > 0;
+    return Array.isArray(linhas) && linhas.length ? linhas[0] : null;
   } catch {
     // Banco fora do ar nega o acesso em vez de liberar por omissão.
-    return false;
+    return null;
   }
+}
+
+export async function estaAutorizado(email) {
+  return Boolean(await buscarAutorizacao(email));
 }

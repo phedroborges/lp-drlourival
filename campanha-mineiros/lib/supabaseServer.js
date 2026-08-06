@@ -3,7 +3,7 @@
 // do supabaseAdmin, depois que a sessao foi conferida.
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { estaAutorizado } from "./acesso.js";
+import { buscarAutorizacao } from "./acesso.js";
 
 export async function criarClienteServidor() {
   const cookieStore = await cookies();
@@ -32,7 +32,10 @@ export async function getUsuario() {
   const supabase = await criarClienteServidor();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
-  return (await estaAutorizado(data.user.email)) ? data.user : null;
+  const autorizacao = await buscarAutorizacao(data.user.email);
+  if (!autorizacao) return null;
+  // admin decide quem pode dar e tirar acesso das outras pessoas.
+  return { ...data.user, admin: autorizacao.admin === true };
 }
 
 // Barreira das rotas de API: o proxy ja redireciona a navegacao, mas cada
@@ -41,6 +44,16 @@ export async function exigirUsuario() {
   const usuario = await getUsuario();
   if (!usuario) {
     throw Object.assign(new Error("Faça login para continuar"), { status: 401 });
+  }
+  return usuario;
+}
+
+// Barreira da tela de Acessos: estar liberado não é o mesmo que poder liberar
+// outras pessoas.
+export async function exigirAdmin() {
+  const usuario = await exigirUsuario();
+  if (!usuario.admin) {
+    throw Object.assign(new Error("Só a coordenação pode gerenciar acessos"), { status: 403 });
   }
   return usuario;
 }

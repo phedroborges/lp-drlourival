@@ -45,28 +45,26 @@ publicável e confirma o próprio e-mail. A lista é conferida a cada requisiç�
 — no `proxy.js` e de novo em `exigirUsuario()` —, então tirar alguém da lista
 derruba o acesso na hora, mesmo com a sessão dele ainda válida.
 
-Para liberar alguém, crie a conta em Supabase → Authentication → Users →
-*Add user* e depois rode no SQL Editor:
+Quem gerencia isso é a tela **Acessos** (`/acessos`), visível apenas para
+quem tem `admin = true`. Ela cria a conta de login e libera o acesso numa
+ação só, gera senha quando o campo fica vazio (mostrada uma única vez),
+redefine senha e remove — apagando a conta junto, para não sobrar login
+órfão no projeto. Ninguém consegue remover o próprio acesso nem a própria
+administração, senão a campanha ficaria sem quem libera.
 
-```sql
-select autorizar_email('pessoa@exemplo.com.br', 'Nome da Pessoa');
-```
-
-Para revogar:
-
-```sql
-delete from usuario_autorizado where email = 'pessoa@exemplo.com.br';
-```
+Esconder o link do menu não é a proteção: `/api/usuarios` exige `admin` em
+todos os métodos e responde 403 para quem não é.
 
 Continua valendo desativar o cadastro público em Authentication → Sign In /
 Providers, para o projeto não acumular contas de estranhos — mas isso agora é
 higiene, não é o que segura o acesso.
 
-O `proxy.js` (o que até o Next 15 se chamava middleware) renova a sessão e
-barra quem não está logado. A única rota pública é o plano de campo
-(`/campo/[token]` e `/api/campo/[token]`), que a equipe de rua abre por link.
-Cada rota de API confere a sessão de novo via `lib/rota.js`, para não depender
-só do proxy.
+Se precisar mexer direto no banco (por exemplo, para recuperar o primeiro
+acesso), a função continua existindo:
+
+```sql
+select autorizar_email('pessoa@exemplo.com.br', 'Nome da Pessoa', true);
+```
 
 ## Desenvolvimento local
 

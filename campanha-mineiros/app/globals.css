@@ -879,3 +879,32 @@ h1,h2,h3,h4,.brand-placa,.stat .num,.kpi .num { font-style: normal; letter-spaci
 
 .tag-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .3rem; }
 .tag-chips span { padding: .15rem .45rem; border-radius: 999px; color: var(--ui-primary, var(--azul)); background: var(--ui-primary-soft, var(--surface-blue)); font-size: .63rem; font-weight: 600; }
+
+/* ---------- Acessos ---------- */
+.acesso-form { margin-bottom: 1.2rem; display: grid; gap: .9rem; justify-items: start; }
+.acesso-form .form-grid { width: 100%; }
+.acesso-admin { display: flex; align-items: center; gap: .55rem; align-self: end; padding: .55rem .7rem; border: 1px solid var(--ui-line, var(--brand-border)); border-radius: 10px; cursor: pointer; }
+.acesso-admin span { display: grid; }
+.acesso-admin strong { font-size: .8rem; }
+.acesso-admin small { color: var(--brand-muted); font-size: .68rem; }
+
+.acesso-lista { display: grid; gap: .6rem; }
+.acesso-card { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: .85rem; padding: .9rem 1rem; border: 1px solid var(--ui-line, var(--brand-border)); border-radius: 12px; background: #fff; box-shadow: var(--shadow); }
+.acesso-identidade { display: grid; min-width: 0; }
+.acesso-identidade strong { font-size: .9rem; }
+.acesso-identidade small { color: var(--brand-muted); font-size: .72rem; }
+.acesso-meta { margin-top: .15rem; color: #9aa3ad; font-size: .68rem; }
+.acesso-badge { padding: .2rem .55rem; border-radius: 999px; color: var(--ui-primary, var(--azul)); background: var(--ui-primary-soft, var(--surface-blue)); font-size: .66rem; font-weight: 700; }
+.acesso-acoes { display: flex; flex-wrap: wrap; gap: .35rem; }
+
+.senha-gerada { display: flex; align-items: center; gap: .85rem; margin-bottom: 1rem; padding: .85rem 1rem; border: 1px solid var(--verde); border-radius: 12px; background: var(--verde-soft); }
+.senha-gerada > div { display: grid; flex: 1; }
+.senha-gerada strong { font-size: .85rem; }
+.senha-gerada small { color: #2c6b4a; font-size: .7rem; }
+.senha-gerada code { padding: .4rem .7rem; border-radius: 8px; background: #fff; border: 1px solid var(--verde); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; font-weight: 700; letter-spacing: .04em; }
+.senha-gerada > button { border: 0; background: transparent; color: #2c6b4a; font-size: 1.1rem; }
+
+@media (max-width: 720px) {
+  .acesso-card { grid-template-columns: auto 1fr; }
+  .acesso-badge, .acesso-acoes { grid-column: 1 / -1; }
+}

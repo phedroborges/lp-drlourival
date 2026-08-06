@@ -10,8 +10,9 @@ const LINKS = [
   { href: "/orcamento", label: "Orçamento", icon: "R$" },
 ];
 
-export default function Nav() {
+export default function Nav({ admin = false }) {
   const path = usePathname();
+  const links = admin ? [...LINKS, { href: "/acessos", label: "Acessos", icon: "◈" }] : LINKS;
   return (
     <aside className="sidebar" aria-label="Navegação principal">
       <Link href="/" className="side-brand" aria-label="Dados da campanha — início">
@@ -20,7 +21,7 @@ export default function Nav() {
       </Link>
 
       <div className="side-sec">Geral</div>
-      {LINKS.map((item) => {
+      {links.map((item) => {
         const active = item.href === "/" ? path === "/" || path.startsWith("/cidade/") : path.startsWith(item.href);
         return <Link key={item.href} href={item.href} className={`side-link${active ? " active" : ""}`}><span className="side-ico" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
       })}
