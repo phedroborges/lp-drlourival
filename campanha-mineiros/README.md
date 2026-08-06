@@ -33,9 +33,34 @@ sudoeste). O app não o importa mais — ele existe para semear a tabela
 
 ## Acesso
 
-Login por e-mail e senha (Supabase Auth). O cadastro público deve ficar
-**desativado**: os usuários são criados pela coordenação em
-Supabase → Authentication → Users → *Add user*.
+Login por e-mail e senha (Supabase Auth). São **duas** barreiras, e a segunda
+é a que vale:
+
+1. Ter conta no projeto Supabase.
+2. Ter o e-mail na tabela `usuario_autorizado`.
+
+A segunda existe porque a primeira não é suficiente: enquanto o cadastro
+público do projeto estiver aberto, qualquer pessoa cria uma conta com a chave
+publicável e confirma o próprio e-mail. A lista é conferida a cada requisição
+— no `proxy.js` e de novo em `exigirUsuario()` —, então tirar alguém da lista
+derruba o acesso na hora, mesmo com a sessão dele ainda válida.
+
+Para liberar alguém, crie a conta em Supabase → Authentication → Users →
+*Add user* e depois rode no SQL Editor:
+
+```sql
+select autorizar_email('pessoa@exemplo.com.br', 'Nome da Pessoa');
+```
+
+Para revogar:
+
+```sql
+delete from usuario_autorizado where email = 'pessoa@exemplo.com.br';
+```
+
+Continua valendo desativar o cadastro público em Authentication → Sign In /
+Providers, para o projeto não acumular contas de estranhos — mas isso agora é
+higiene, não é o que segura o acesso.
 
 O `proxy.js` (o que até o Next 15 se chamava middleware) renova a sessão e
 barra quem não está logado. A única rota pública é o plano de campo

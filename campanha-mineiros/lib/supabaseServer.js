@@ -3,6 +3,7 @@
 // do supabaseAdmin, depois que a sessao foi conferida.
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { estaAutorizado } from "./acesso.js";
 
 export async function criarClienteServidor() {
   const cookieStore = await cookies();
@@ -30,7 +31,8 @@ export async function criarClienteServidor() {
 export async function getUsuario() {
   const supabase = await criarClienteServidor();
   const { data, error } = await supabase.auth.getUser();
-  return error ? null : data.user;
+  if (error || !data.user) return null;
+  return (await estaAutorizado(data.user.email)) ? data.user : null;
 }
 
 // Barreira das rotas de API: o proxy ja redireciona a navegacao, mas cada

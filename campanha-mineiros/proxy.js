@@ -5,6 +5,7 @@
 // Todo o resto — paginas e rotas de API — exige login.
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { estaAutorizado } from "./lib/acesso.js";
 
 const ROTAS_PUBLICAS = [/^\/login$/, /^\/campo\//, /^\/api\/campo\//];
 
@@ -33,7 +34,11 @@ export async function proxy(request) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
-  if (!user && !ehPublica(pathname)) {
+  // Estar logado nao basta: o e-mail precisa estar na lista de acesso.
+  // Sem isso, qualquer conta criada no Supabase entraria no painel.
+  const liberado = user ? await estaAutorizado(user.email) : false;
+
+  if (!liberado && !ehPublica(pathname)) {
     // API responde 401; navegacao vai para o login e volta depois.
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Faça login para continuar" }, { status: 401 });
@@ -41,12 +46,15 @@ export async function proxy(request) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     login.search = "";
-    login.searchParams.set("proxima", pathname);
+    // Logado mas fora da lista: avisa em vez de mandar logar de novo.
+    if (user) login.searchParams.set("erro", "sem-acesso");
+    else login.searchParams.set("proxima", pathname);
     return NextResponse.redirect(login);
   }
 
-  // Quem ja esta logado nao precisa ver a tela de login.
-  if (user && pathname === "/login") {
+  // Quem ja esta liberado nao precisa ver a tela de login. Quem esta logado
+  // mas fora da lista precisa ver, para receber o aviso e poder sair.
+  if (liberado && pathname === "/login") {
     const inicio = request.nextUrl.clone();
     inicio.pathname = "/";
     inicio.search = "";

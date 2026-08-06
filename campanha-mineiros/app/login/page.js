@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { criarClienteNavegador } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,21 @@ import { Spinner } from "@/components/ui/spinner";
 
 function FormularioLogin() {
   const router = useRouter();
-  const proxima = useSearchParams().get("proxima") || "/";
+  const parametros = useSearchParams();
+  const proxima = parametros.get("proxima") || "/";
+  const semAcesso = parametros.get("erro") === "sem-acesso";
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+
+  // Conta válida, mas fora da lista de acesso: derruba a sessão para não
+  // deixar o navegador preso num cookie que não abre nada.
+  useEffect(() => {
+    if (!semAcesso) return;
+    setErro("Esta conta não tem acesso ao painel. Fale com a coordenação.");
+    criarClienteNavegador().auth.signOut().catch(() => {});
+  }, [semAcesso]);
 
   async function entrar(evento) {
     evento.preventDefault();
@@ -30,6 +40,17 @@ function FormularioLogin() {
       setEnviando(false);
       return;
     }
+    // A senha estava certa, mas o acesso ao painel é decidido pela lista.
+    const liberado = await fetch("/api/acesso", { cache: "no-store" })
+      .then((resposta) => resposta.ok)
+      .catch(() => false);
+    if (!liberado) {
+      await supabase.auth.signOut();
+      setErro("Esta conta não tem acesso ao painel. Fale com a coordenação.");
+      setEnviando(false);
+      return;
+    }
+
     // O cookie de sessao so chega ao servidor no proximo request: refresh
     // antes de navegar, senao o proxy manda de volta para o login.
     router.refresh();
